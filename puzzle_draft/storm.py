@@ -186,6 +186,11 @@ STATES_OF["city-survey"]["Inaccessible"] = set()
 for _noise in NOISE_311:
     STATES_OF["311"][_noise] = set()
 
+# every value each source can report (the `value` field, not the rendered line): the harness validates glosses
+# and only_values against this, and the curator brief lists it
+VALUES = {src: sorted(STATES_OF[src]) for src in STATES_OF}
+VALUES["pre-storm-map"] = sorted(PLUTO.values())
+
 
 def _nyc_water(r, c):
     if c <= 1:

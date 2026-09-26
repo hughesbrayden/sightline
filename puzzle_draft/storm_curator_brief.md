@@ -20,7 +20,10 @@ a block that was actually intact.
 ## Report sources
 
 `911-call`, `311`, `social-post`, `city-survey`, `fire-dept`, `pre-storm-map`, `drone-pass`, `utility-feed`.
-Every report is filed at one block and has a `value` (the source's own code or label, shown in the traces).
+Every report is filed at one block and has a `value`: the source's own code or label (for example `111`, `Major`,
+`de-energized`). Traces show it inside a longer rendered line such as "NFIRS incident type 111"; `gloss_value` keys
+and `only_values` entries must be the bare value, exactly as listed under "Report values" at the end of this brief.
+A genome with keys that match no value is rejected with the list of valid ones.
 Learn what each source's values mean, and how reliable each source is, from the traces.
 
 ## Ops

@@ -43,6 +43,12 @@ def now():
     return datetime.now(timezone.utc)
 
 
+def value_catalog() -> str:
+    """The exact values each source can report: what gloss_value keys and only_values must use."""
+    rows = [f"- `{src}`: " + ", ".join(f"`{v}`" for v in storm.VALUES[src]) for src in storm.SOURCES]
+    return "\n\n## Report values\n\n" + "\n".join(rows) + "\n"
+
+
 def leak_check(prompt: str) -> None:
     if m := FORBIDDEN.search(prompt):
         raise RuntimeError(f"LEAK CHECK FAILED: curator prompt contains {m.group(0)!r}; not sent")
@@ -183,7 +189,7 @@ def main() -> None:
     run = args.run or now().strftime("run-%m%d-%H%M")
     backend = get_backend(args.backend)
     lineage = Lineage(run, enabled=not args.no_mongo)
-    brief = BRIEF.read_text(encoding="utf-8")
+    brief = BRIEF.read_text(encoding="utf-8") + value_catalog()
     print(f"  {run}: curator {model}, backend {backend.name}, budget {args.gens} generations, gate margin {GATE_MARGIN:.0%}")
 
     if args.resume:  # rebuild the curator's own history from the local lineage; it sees nothing new

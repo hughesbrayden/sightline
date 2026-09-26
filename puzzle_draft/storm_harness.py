@@ -21,7 +21,7 @@ import re
 from collections import Counter, defaultdict
 from pathlib import Path
 
-from storm import SOURCES, STATES_OF, STORM_DIR, TOWNS, doc_text
+from storm import SOURCES, STATES_OF, STORM_DIR, TOWNS, VALUES, doc_text
 
 BUDGET = 12
 SHOWS = {"raw", "profile"}
@@ -56,6 +56,19 @@ def _sources(op: dict) -> set:
     return set(op.get("sources", [])) | ({op["source"]} if "source" in op else set())
 
 
+def _unknown_values(srcs: set, values, case_sensitive: bool) -> list:
+    """Values that no listed source can report. A gloss or filter on them would silently do nothing."""
+    known = {v for s in (srcs or SOURCES) for v in VALUES[s]}
+    if not case_sensitive:
+        known = {v.lower() for v in known}
+        return [v for v in values if str(v).lower() not in known]
+    return [v for v in values if v not in known]
+
+
+def _value_help(srcs: set) -> str:
+    return "; ".join(f"{s}: {', '.join(repr(v) for v in VALUES[s])}" for s in sorted(srcs or SOURCES))
+
+
 def validate(genome: dict) -> None:
     if "id" not in genome or not isinstance(genome.get("ops"), list):
         raise GenomeError("genome needs 'id' and a list of 'ops'")
@@ -73,13 +86,22 @@ def validate(genome: dict) -> None:
             raise GenomeError(f"{name} needs 'source' or 'sources': {op}")
         if name == "gloss_value" and not isinstance(op.get("map"), dict):
             raise GenomeError(f"gloss_value needs a 'map' of value -> explanation: {op}")
+        if name == "gloss_value" and (bad := _unknown_values(_sources(op), op["map"], case_sensitive=True)):
+            raise GenomeError(
+                f"gloss_value keys must be report values exactly as in the `value` field (e.g. '111', not "
+                f"'NFIRS incident type 111'); these match nothing and would do nothing: {bad}. "
+                f"Valid values: {_value_help(_sources(op))}")
+        if name in {"include_own", "include_related"} and "only_values" in op:
+            if not isinstance(op["only_values"], list):
+                raise GenomeError(f"only_values must be a list of report values: {op}")
+            if bad := _unknown_values(_sources(op), op["only_values"], case_sensitive=False):
+                raise GenomeError(f"only_values {bad} match no report value, so they would filter out everything. "
+                                  f"Valid values: {_value_help(_sources(op))}")
         if name == "include_related":
             if not 1 <= int(op.get("radius", 1)) <= 3:
                 raise GenomeError(f"radius must be 1-3: {op}")
             if op.get("show", "raw") not in SHOWS:
                 raise GenomeError(f"show must be one of {sorted(SHOWS)}: {op}")
-            if "only_values" in op and not isinstance(op["only_values"], list):
-                raise GenomeError(f"only_values must be a list of report values: {op}")
 
 
 class Prepared:
