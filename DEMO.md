@@ -1,15 +1,25 @@
-# Sightline: hurricane damage map demo
+# Sightline: hurricane damage map
 
-A harness that teaches itself what context to show **Jev**, TypeSafe's fast decision model, proves the result
-on a storm it never saw, and can't cheat because MongoDB locks the answers away.
+A harness that teaches itself what context to show **Jev**, TypeSafe's fast decision model, proves the result on
+a storm it never saw, and can't cheat because MongoDB locks the answers away.
+
+| | |
+|---|---|
+| **Start page (share this)** | https://sightline-jev.vercel.app |
+| **Stage demo, 7 beats, live data** | https://sightline-jev.vercel.app/sightline.html (`?beat=1..7` jumps to a beat) |
+| **Read-only API** | https://sightline-jev.vercel.app/api/state · `/api/map` · `/api/block` · `/api/reports` |
+| **Code** | https://github.com/hughesbrayden/sightline |
+| **Backend, one command** | `./sightline.sh help` |
 
 - [The pitch](#the-pitch)
 - [Architecture](#architecture)
-- [Run the demo yourself](#run-the-demo-yourself)
-- [Dashboard](#dashboard-dashboard)
-- [Status and remaining tasks](#status-and-remaining-tasks)
+- [Run the backend](#run-the-backend)
+- [Score tonight's storm (once)](#score-tonights-storm-once)
+- [Dashboard and stage demo](#dashboard-and-stage-demo)
+- [Results](#results)
+- [Status](#status)
 - [What we learned](#what-we-learned)
-- [Video and hosting](#video-and-hosting)
+- [Video and submission](#video-and-submission)
 
 ## The pitch
 
@@ -42,31 +52,111 @@ roles); a Python harness; the Sightline design system; a Next.js dashboard on Ve
 
 ## Architecture
 
+### The system
+
+Blue nodes run under one of the three locked MongoDB logins. The answer key (`assessments`) is reachable only by
+the scorer.
+
+```mermaid
+flowchart LR
+  subgraph GEN["Storm world (builder only)"]
+    STORM["storm.py<br/>8 simulated storms<br/>12 states, 8 report sources"]
+  end
+
+  subgraph ATLAS["MongoDB Atlas · jevly"]
+    REPORTS[("reports<br/>blocks")]
+    TRUTH[("assessments<br/>answer key")]
+    POL[("policies<br/>memory")]
+    RUNS[("runs · gate_scores<br/>heldout_scores")]
+  end
+
+  subgraph LOOP["Harness loop · driver.py"]
+    CUR["Curator LLM<br/>GLM-5.2 via OpenRouter"]
+    VAL["Validate genome<br/>leak guard · memory check"]
+    COMP["Compile ops to a<br/>$geoNear / $match / $switch pipeline"]
+    CTX["Harness: 12 lines per block"]
+    JEV["Jev · typesafe/jev-1.13<br/>3,111 blocks per generation"]
+    SCORE["Scorer<br/>balanced acc · life-safety · false dispatches"]
+    GATE{"Gate<br/>validation +1 pt?"}
+  end
+
+  subgraph WEB["Vercel · Next.js"]
+    API["Read-only API<br/>/api/state /map /block /reports"]
+    UI["Start page +<br/>Sightline stage demo"]
+    SNAP["snapshot.json<br/>offline fallback"]
+  end
+
+  STORM -- "admin login" --> REPORTS
+  STORM -- "admin login" --> TRUTH
+  CUR --> VAL --> COMP --> CTX
+  REPORTS -- "curator login" --> CTX
+  CTX --> JEV --> SCORE
+  TRUTH -- "scorer login only" --> SCORE
+  SCORE -- "dev digest: scores + 30 traces" --> CUR
+  SCORE --> GATE
+  GATE -- "pass / fail only" --> CUR
+  GATE -- "lineage (curator login)" --> POL
+  SCORE -- "scorer login" --> RUNS
+  POL -- "dashboard login" --> API
+  RUNS -- "dashboard login" --> API
+  API --> UI
+  SNAP -. "if the API is down" .-> UI
+  CUR -. "tripwire probe: DENIED" .-x TRUTH
+
+  classDef locked fill:#ddeff3,stroke:#0a6c86,color:#15191b;
+  classDef answer fill:#f6dcd9,stroke:#b0271f,color:#15191b;
+  class CTX,SCORE,API,POL locked;
+  class TRUTH answer;
 ```
- GENERATE              COMPILE + RUN                     SCORE (locked)            LEARN
- storm.py ──► Atlas    storm_harness.py                  scorer login only         driver.py
- 8 city storms         genome ─► 12 lines per block      assessments ─► scores     curator LLM (OpenRouter)
- 8 report sources      ops ─► $geoNear/$match/$switch    runs, gate_scores,        ◄─ brief + own history + digest
- truth ─► assessments  Jev ×3,111 blocks                 heldout_scores            ─► genome ─► validate ─► dedupe ─► gate
-                                                                                    lineage ─► policies (curator login)
- Dashboard (Vercel) ◄── dashboard login: read-only, everything except assessments
+
+### One generation, step by step
+
+```mermaid
+sequenceDiagram
+  autonumber
+  participant D as driver.py
+  participant C as Curator LLM
+  participant H as Harness
+  participant J as Jev
+  participant S as Scorer (scorer login)
+  participant M as MongoDB
+
+  D->>D: Build the prompt: brief + own past genomes + last dev digest
+  D->>D: Leak check (no storm ids, cities, truth, validation numbers)
+  D->>C: Propose the next genome
+  C-->>D: Genome JSON: ops, hypothesis, prediction
+  D->>D: Validate + leak guard (no coordinates or storm ids in ops)
+  D->>D: Memory check: skip near-duplicates of rejected ideas
+  D->>M: policies: status running + compiled pipeline (curator login)
+  loop 3,111 blocks: 3 past storms + the validation storm
+    H->>M: Reports near the block (curator login)
+    H->>J: 12 lines + the 12 states
+    J-->>H: Pick + confidence (about 250 ms)
+  end
+  H->>S: Answers
+  S->>M: Read assessments (only this login can)
+  S->>M: runs rows, gate_scores (validation number)
+  S-->>D: Dev scores + 30 traces, validation balanced accuracy
+  D->>D: Gate: keep only if validation beats the best by 1 point
+  D->>M: policies: accepted / rejected, dev score, gate pass/fail
+  D-->>C: Next prompt sees the digest and pass/fail, never the validation number
 ```
 
 ### Storms and splits
 
-The city outlines match the Sightline demo (stylized NYC, Miami, Houston, New Orleans). **The storms are
-simulated.**
+The city outlines match the Sightline design (stylized NYC, Miami, Houston, New Orleans). **The storms are
+simulated** and deterministic: `storm_run.py build` regenerates them byte-for-byte.
 
 | Split | Storms | Who sees what |
 |---|---|---|
 | dev | MIA1, HOU1, NOL1 (past storms) | Curator gets scores and 30 traces per generation |
 | val | NYC0 (a past NYC storm) | The gate; the curator only learns pass or fail |
 | heldout | NYC1 (tonight) | Scored once, at the end |
-| cities | MIA2, HOU2, NOL2 (next season) | Scored once with the frozen policy (demo beat 7) |
+| cities | MIA2, HOU2, NOL2 (next season) | Scored once with the frozen policy (beat 7) |
 
-There are 12 states: intact, flooded_street, flooded_homes, roof_damage, collapsed, fire, road_blocked,
-power_out, downed_lines, shelter_open, hospital_ok, hospital_down. The life-safety states are collapsed,
-flooded_homes, fire and hospital_down.
+There are 12 states: intact, flooded_street, flooded_homes, roof_damage, collapsed, fire, road_blocked, power_out,
+downed_lines, shelter_open, hospital_ok, hospital_down. The life-safety states are collapsed, flooded_homes, fire
+and hospital_down.
 
 ### Report sources
 
@@ -83,19 +173,26 @@ Each source has one planted habit, and each habit can be fixed with a harness op
 | `drone-pass` | accurate, about 30% coverage; power outages look like "no visible damage" |
 | `utility-feed` | accurate but feeder-wide |
 
-### MongoDB (`jevly` database)
+### Harness ops
 
-The project is now called Sightline, but the database, logins, local container and LangSmith project keep the
-original `jevly` name, so existing Atlas setups and `.env` files keep working.
+| Op | Effect | Compiles to |
+|---|---|---|
+| `exclude_source` | Drop every report from a source | `$match: {source: {$nin: [...]}}` |
+| `gloss_value` | Show `value (explanation)` for a source's codes | `$set` with `$switch` |
+| `include_own {k}` | The block's own reports | `$match` on the block + `$limit` |
+| `include_related {radius, only_values, sources, show}` | Reports from nearby blocks, listed raw or summarized | `$geoNear` + `$match` (+ `$group` for profiles) |
+| `format: relative` | "Neighbor 1 block north" instead of coordinates | presentation |
+
+### MongoDB (`jevly` database)
 
 | Collection | Contents | Read by | Written by |
 |---|---|---|---|
 | `blocks` | town, x, y, `loc` (2d index), land use, elevation | dashboard | admin (loader) |
 | `reports` | town, source, x, y, `loc` (2d index), value, text, hour | curator, dashboard | admin |
-| `assessments` | **truth**: town, x, y, state | **scorer only** | admin |
-| `policies` | lineage: gen, parent, status, ops, compiled_pipeline, rationale, prediction, dev_score, gate | curator, dashboard | curator |
-| `runs` | time-series: {meta: {run, gen, town}, x, y, pick, conf, correct} | scorer, dashboard | scorer |
-| `gate_scores` | validation score per generation (kept away from the curator) | scorer, dashboard | scorer |
+| `assessments` | **the answer key**: town, x, y, state | **scorer only** | admin |
+| `policies` | lineage: gen, parent, status, ops, compiled_pipeline, hypothesis, prediction, dev_score, gate | curator, dashboard | curator |
+| `runs` | time-series, one row per block per generation: pick, confidence, probabilities, the exact lines Jev saw, graded truth | scorer, dashboard | scorer |
+| `gate_scores` | validation score per generation, plus refs (baseline, ceiling). Kept away from the curator | scorer, dashboard | scorer |
 | `heldout_scores` | once-only scores for tonight and the other cities | scorer, dashboard | scorer |
 | `memory` | findings and rejected ideas, with a vector index | curator, dashboard | curator |
 
@@ -103,219 +200,179 @@ original `jevly` name, so existing Atlas setups and `.env` files keep working.
 
 | File | Role |
 |---|---|
-| `puzzle_draft/storm.py` | Storm generator: city masks, damage rules, sources, coverage assertion |
+| `sightline.sh` | One entry point for everything below |
+| `puzzle_draft/storm.py` | Storm generator: city outlines, damage rules, sources, coverage assertion |
 | `puzzle_draft/storm_harness.py` | Genome → the exact text Jev sees; leak guard; ops → Mongo pipeline compiler |
-| `puzzle_draft/storm_run.py` | CLI: `build`, `truth`, `load`, `preview`, `run` (the scorer reads truth through the scorer login) |
-| `puzzle_draft/driver.py` | The automatic loop: curator → validate → near-duplicate skip → evaluate → gate → lineage |
+| `puzzle_draft/storm_run.py` | `build`, `truth`, `load`, `preview`, `run` (scorer reads truth through the scorer login), `refs` |
+| `puzzle_draft/driver.py` | The automatic loop: curator → validate → memory check → evaluate → gate → lineage |
 | `puzzle_draft/storm_curator_brief.md` | Everything the curator is told (nothing about the planted habits) |
-| `puzzle_draft/storm_genomes/baseline.json` | The no-harness policy: the 12 nearest reports |
+| `puzzle_draft/storm_genomes/` | `baseline.json` (12 nearest reports) and each run's best genome |
 | `puzzle_draft/storm_reference/` | Builder's hand-written ceiling. **Never shown to the curator** |
 | `puzzle_draft/db.py`, `mongo_setup.py`, `mongo_itest.py` | Logins, schema, roles, permission check, tripwire probe, integration test |
-| `puzzle_draft/preflight.py` | End-to-end access check |
-| `puzzle_draft/run.py` + `evidence.py` + `harness.py` | v4 ticket-routing world (fallback and closer) |
+| `puzzle_draft/preflight.py`, `backfill_runs.py` | Access check; rebuild older `runs` rows |
+| `dashboard/` | Next.js: read-only API, start page, `public/sightline.html`, `public/snapshot.json` |
+| `demo/` | Sightline stage demo source (`src/app.js`, `src/live.js`), `build_live.sh`, `snapshot.mjs` |
+| `ds-sightline/` | Sightline design system: tokens and components |
 
-## Run the demo yourself
+## Run the backend
 
-### Setup (once)
+Everything goes through `./sightline.sh`:
 
-```bash
-pip install typesafe-sdk pymongo certifi numpy pillow httpx python-dotenv
-cp .env.example .env    # then fill in the values below
-```
+| Command | What it does |
+|---|---|
+| `./sightline.sh setup` | Install Python and dashboard dependencies; create `.env` if it's missing |
+| `./sightline.sh preflight` | Check OpenRouter, Jev, the curator LLM and all four MongoDB logins (expect 12/12) |
+| `./sightline.sh db local` | Local Atlas container + schema + locked logins, then the permission check, probe and integration test |
+| `./sightline.sh db atlas` | Same on cloud Atlas (needs `MONGODB_URI_ADMIN` and `atlas auth login`) |
+| `./sightline.sh world` | Generate the 8 storms, render the truth maps, load everything into MongoDB |
+| `./sightline.sh calibrate` | Baseline (floor) vs the builder's reference (ceiling) on real Jev; stores the refs |
+| `./sightline.sh loop --gens 8 --run live-2` | The automatic loop. Add `--resume` to continue a run, `--fake` for a free rehearsal |
+| `./sightline.sh final live-1` | Score tonight's storm and the cities **once** (see below) |
+| `./sightline.sh publish` | Record the run (offline fallback + start-page numbers) and rebuild the stage demo |
+| `./sightline.sh dashboard` | Run the dashboard locally at http://localhost:3000 |
+| `./sightline.sh deploy` | Deploy the dashboard to Vercel |
+| `./sightline.sh validate [url]` | 39 contract checks against the API |
+| `./sightline.sh all --gens 8 --run live-2` | preflight → world → calibrate → loop → publish (never `final`) |
 
-`.env` needs:
+**Setup (once).** Python 3.12 and Node 20 or newer. Run `./sightline.sh setup`, then fill in `.env`:
 
-- `OPENROUTER_API_KEY`: one key covers Jev and the curator.
+- `OPENROUTER_API_KEY`: one key covers Jev and the curator. **Jev calls need purchased OpenRouter credit.**
 - `CURATOR_MODEL`: defaults to `z-ai/glm-5.2`.
-- `MONGODB_URI_ADMIN`, `MONGODB_URI_CURATOR`, `MONGODB_URI_SCORER`, `MONGODB_URI_DASHBOARD`: ask Kishore
-  privately. Never commit them.
-- For a fully local database instead, run `docker compose up -d && python puzzle_draft/mongo_setup.py setup`. It
-  creates the same roles and writes the URIs for you.
+- `MONGODB_URI_ADMIN`, `MONGODB_URI_CURATOR`, `MONGODB_URI_SCORER`, `MONGODB_URI_DASHBOARD`: ask Kishore privately,
+  or run `./sightline.sh db local` to create your own. Never commit them.
 
-### The demo, step by step
+**Look before you run.** These cost nothing:
 
 ```bash
-python puzzle_draft/preflight.py                                   # 1. everything reachable? expect 12/12
-python puzzle_draft/storm_run.py build                             # 2. generate the 8 storms (deterministic)
-python puzzle_draft/storm_run.py truth && open out/storm/truth_sheet.png
-python puzzle_draft/storm_run.py load                              # 3. push them to Atlas (admin login)
-python puzzle_draft/storm_run.py preview NYC1 12 5                 # 4. exact text Jev sees (baseline)
+python puzzle_draft/storm_run.py preview NYC1 12 5            # exact text Jev sees under the baseline
 python puzzle_draft/storm_run.py preview NYC1 12 5 --genome puzzle_draft/storm_reference/ref_full.json
-python puzzle_draft/storm_run.py run puzzle_draft/storm_genomes/baseline.json   # 5. baseline map + scores
-open out/storm/runs/baseline/*.png
-python puzzle_draft/driver.py --gens 3 --run my-demo               # 6. the live loop (~4 min, ~$0.50)
-python puzzle_draft/mongo_setup.py probe --run my-demo             # 7. tripwire: curator denied on assessments
+open out/storm/truth_sheet.png                                  # the 8 storms (after `world`)
 ```
 
-- **Step 6** prints one line per generation: gen, status, dev, val, gate, tokens, seconds, and the curator's
-  hypothesis. The maps land in `out/storm/runs/my-demo_gXX/`. The lineage goes to Atlas `policies` and
-  `out/storm/lineage/my-demo.jsonl`, and the best genome to `out/storm/lineage/my-demo_best.json`.
-- **Free rehearsal:** add `--backend fake` (and `--no-mongo`) to steps 5–6. The fake backend ignores glosses, so
-  its numbers prove only that the pipeline runs.
-- **Replays are instant:** every Jev answer is cached in `puzzle_draft/cache/`, so rerunning a genome costs
-  nothing.
+**What a loop prints.** One line per generation: gen, status, dev, val, gate, tokens, seconds and the curator's
+hypothesis. Maps land in `out/storm/runs/<run>_gXX/`; the lineage goes to Atlas `policies` and
+`out/storm/lineage/<run>.jsonl`; the best genome goes to `out/storm/lineage/<run>_best.json`.
 
-### Score tonight's storm (once, at the very end)
+**Cost and time.** Each generation is 3,111 Jev calls: about $0.12 and about a minute, plus $0.01–0.04 and
+20–90 s for the curator. Replays are free, because every Jev answer is cached in `puzzle_draft/cache/`. `--fake`
+costs nothing but ignores glosses, so its numbers prove only that the pipeline runs.
 
-Anyone on the team can do this from `main`. It needs only `OPENROUTER_API_KEY` and `MONGODB_URI_SCORER` in
-`.env`; no admin login and no Jev cache.
+## Score tonight's storm (once)
 
-1. **Wait for the final genome.** The best genome of the finished run is committed at
-   `puzzle_draft/storm_genomes/<run>_best.json`; its `id` ends in the generation number, for example `live-1_g03`.
-   Agree in chat who runs step 3: it can run only once per genome.
-2. `python puzzle_draft/storm_run.py build`: regenerates the storm files locally. They're gitignored, and the
-   rebuild is byte-identical to what's in Atlas.
-3. Score it:
-
-   ```bash
-   python puzzle_draft/storm_run.py run puzzle_draft/storm_genomes/live-1_best.json \
-     --split heldout,cities --final --run live-1 --gen 3
-   ```
-
-   This scores NYC1 (tonight) and MIA2, HOU2 and NOL2 (next season): 3,111 Jev calls, about $0.12 and 1 minute.
-   It writes `heldout_scores` plus the map rows the dashboard shows. It refuses to run if that genome was
-   already scored.
-4. Also score the **baseline** once on tonight's storm, so the stage demo can show generation 0 on NYC1 (beats 1–2):
-
-   ```bash
-   python puzzle_draft/storm_run.py run puzzle_draft/storm_genomes/baseline.json --split heldout --final --run live-1 --gen 0
-   ```
-
-   The baseline was never tuned on anything, so this is a fair "before". The stage demo switches from NYC0 to
-   NYC1 by itself once both are scored.
-5. Paste the printed lines into the status section below. Never feed these numbers back into the loop.
-
-### The v4 fallback (ticket routing)
+Run this only once the final genome is chosen. It needs `OPENROUTER_API_KEY` (with credit) and
+`MONGODB_URI_SCORER`.
 
 ```bash
-python puzzle_draft/run.py run curator/genomes/baseline.json P1 --backend fake --private
+./sightline.sh final live-1       # baseline (gen 0) on NYC1, then live-1's best genome on NYC1 + MIA2/HOU2/NOL2
+./sightline.sh publish && ./sightline.sh deploy
 ```
 
-## For judges: one link
+- It's about 3,800 Jev calls, roughly $0.15.
+- It writes `heldout_scores` plus the map rows the demo shows. It refuses to score a genome twice.
+- After `publish`, the start page and the demo switch from the validation storm to tonight's storm, and the
+  "city it never saw" panel fills in.
+- Never feed these numbers back into the loop.
 
-**https://sightline-jev.vercel.app** is the start page: the pitch, the real numbers, the learned rules and the
-tripwire denial, plus **Open the demo** and one link per beat (1–7). The same site also answers at
-https://sightline-dashboard.vercel.app.
+## Dashboard and stage demo
 
-- It works without the database: if the live API is unreachable, the demo loads `snapshot.json`, a recording of
-  the run, and looks the same. Refresh the recording with `node demo/snapshot.mjs` after new runs, then deploy.
-- The start page numbers come from `dashboard/lib/headline.json`, which the same script writes.
-- To test the fallback, open `/sightline.html?snapshot=1`.
+**Start page:** https://sightline-jev.vercel.app shows the pitch, the real numbers, the learned rules, the
+tripwire denial and links to each beat. It's static, so it works even if the database is unreachable. Its
+numbers come from `dashboard/lib/headline.json`, written by `./sightline.sh publish`.
 
-## Stage demo: Brayden's Sightline design on live data
+**Stage demo:** https://sightline-jev.vercel.app/sightline.html is Brayden's seven-beat Sightline story, fed by
+the recorded run through `demo/src/live.js`:
 
-**https://sightline-jev.vercel.app/sightline.html**: the seven-beat Sightline demo (`demo/`), fed by the
-recorded run in MongoDB through `demo/src/live.js`. Maps, reports, misreads, the lineage, scores and the rules
-it learned are all real.
+1. Calm night
+2. Storm hits
+3. Generation 0
+4. Fitness signal
+5. Evolution
+6. Replay
+7. What it learned
 
-- `?beat=1..7` jumps to a beat. `?scenario=1` shows the original illustrative story. `?run=<id>` picks a run.
-- Until tonight's storm (NYC1) is scored, "tonight" is the past NYC validation storm (NYC0), and the page says so.
-  After the `--final` scoring, it switches to NYC1 and fills in the "town it never saw" panel.
+- The maps, reports, misreads (with the line Jev misread), lineage, scores and rules are all real. Clicking a
+  block shows the exact lines Jev saw.
+- Until tonight's storm is scored, the demo night is the past NYC validation storm, and the page says so.
+- Query parameters: `?beat=N` jumps to a beat; `?run=<id>` picks a run; `?scenario=1` shows the original
+  illustrative story; `?snapshot=1` forces the offline fallback.
+- **Offline fallback:** if the API is unreachable, the demo loads `snapshot.json` (a recording of the run) and
+  looks the same.
 - Engine states are drawn in the design system's palette: flooded_homes → homes flooded, collapsed → destroyed,
   roof_damage → wind or roof, power_out and downed_lines → power out, hospital_down → major damage.
-- Rebuild with `bash demo/build_live.sh` (writes `dashboard/public/sightline.html`), then deploy.
 
-## Dashboard (`dashboard/`)
-
-A Next.js app that reads MongoDB with the **read-only `dashboard` login**. It can't read `assessments` and can't
-write anything. The API is built and tested; the page at `/` is a placeholder until the v0 UI replaces it.
-
-```bash
-cd dashboard && npm install
-echo "MONGODB_URI_DASHBOARD=<dashboard login URI>" > .env.local   # server-side only, gitignored
-npm run dev            # http://localhost:3000
-```
-
-**Live:** https://sightline-dashboard.vercel.app (Vercel project `sightline-dashboard`, root `dashboard/`).
-It passes all 38 contract checks: `python dashboard/scripts/validate_api.py https://sightline-dashboard.vercel.app`.
-To redeploy, run `cd dashboard && vercel deploy --prod`. After v0's UI is merged into `dashboard/app/`, connect the
-Git repo in Vercel so every push deploys.
-
-**Deploy to Vercel:**
-
-1. Import the repo.
-2. Set **Root Directory** to `dashboard`.
-3. Add `MONGODB_URI_DASHBOARD` as an environment variable. Never add a `NEXT_PUBLIC_` variant.
-
-**API contract** (poll `/api/state` every 2 seconds):
+**API** (read-only `dashboard` login, server-side only; cross-origin GET allowed):
 
 | Endpoint | Returns |
 |---|---|
-| `GET /api/state?run=live-1` | `run` {id, used, status, cost_usd, best_gen}; `refs` {baseline, ceiling: {dev, val}}; `gens` [{gen, parent, status, gate, dev, val, life_safety_found, false_dispatches, hypothesis, refuted_if, prediction, ops, pipeline, curator}]; `heldout` [once-only scores]; `probe` {denied, error} |
-| `GET /api/map?run=&gen=&town=` | {w, h, mask, states, colors, sea, split, accuracy, cells: [{x, y, pick, conf, correct}]} |
+| `GET /api/state?run=live-1` | `run` {id, used, status, cost_usd, best_gen}; `refs` {baseline, ceiling: {dev, val}}; `gens` [{gen, parent, status, gate, dev, val, life_safety_found, false_dispatches, hypothesis, refuted_if, prediction, ops, pipeline, curator}]; `heldout`; `probe` |
+| `GET /api/map?run=&gen=&town=` | {w, h, mask, states, colors, split, accuracy, cells: [{x, y, pick, conf, correct, truth}]}. Truth appears only where the scorer published it; tonight is empty until scored |
 | `GET /api/block?run=&gen=&town=&x=&y=` | {lines: the exact text Jev saw, jev: {pick, conf, probs}, assessment, correct} |
-| `GET /api/reports?town=NYC1&until_hour=6` | the report feed in arrival order: [{hour, source, x, y, value, text, verified}] |
+| `GET /api/reports?town=NYC1&until_hour=6` | The report feed in arrival order: [{hour, source, x, y, value, text, verified}] |
 
-The storm ids are MIA1, HOU1 and NOL1 (dev), NYC0 (val), NYC1 (tonight) and MIA2, HOU2 and NOL2 (cities). The
-state names and colors are in `dashboard/lib/storm-meta.json`, generated from `storm.py`.
+Pass `gen` explicitly: the current policy is `gen = state.run.best_gen`. Without `gen`, `/api/map` shows the
+newest generation, which may be a rejected one.
 
-## Status and remaining tasks
+**Deploy.** The Vercel project is `sightline-dashboard`, root `dashboard/`, with `MONGODB_URI_DASHBOARD` as a
+secret server-side variable (never add a `NEXT_PUBLIC_` variant). The old address,
+https://sightline-dashboard.vercel.app, also works.
 
-**Done.**
+## Results
 
-- MongoDB Atlas setup: roles, logins, integration test and tripwire probe.
-- Preflight check.
-- The hurricane world: 8 storms, coverage assertion passing.
-- Harness, pipeline compiler, scorer and driver.
-- Real-Jev calibration:
+**Calibration on real Jev** (before any curator ran):
 
-  | Policy | Dev (pooled) | Validation (NYC0) | False dispatches (dev) |
-  |---|---|---|---|
-  | Baseline: the 12 nearest reports | 56.7% | 64.6% | 265 |
-  | Builder reference (the ceiling) | 71.5% | 76.6% | 62 |
+| Policy | Dev (pooled) | Validation (NYC0) | False dispatches (dev) |
+|---|---|---|---|
+| Baseline: the 12 nearest reports | 56.7% | 64.6% | 265 |
+| Builder's reference (the ceiling) | 71.5% | 76.6% | 62 |
 
-**First automatic run (`live-1`, real Jev, curator GLM-5.2), in progress:**
+**The automatic run `live-1`** (real Jev, curator GLM-5.2, gate margin 1 point):
 
-| Gen | Status | Dev | Val | Curator's hypothesis |
+| Gen | Status | Dev | Val | Curator's hypothesis (abridged) |
 |---|---|---|---|---|
-| 0 | baseline | 56.7% | 64.6% | the 12 nearest reports |
-| 1 | accepted | 60.5% | 70.0% | Jev over-weights dramatic, often inaccurate social posts |
+| 0 | baseline | 56.7% | 64.6% | No harness: the 12 reports nearest the block |
+| 1 | **kept** | 60.5% | 70.0% | Jev over-weights dramatic, often inaccurate social posts |
 | 2 | rejected | 59.5% | 69.5% | Jev treats 911 dispatch codes as ground truth for the block |
-| 3 | accepted | 61.1% | 72.1% | Raw neighbor listings make Jev over-weight dramatic life-safety reports |
-| 4 | rejected | 62.7% | 72.9% | 911 codes taken at face value (a gain below the gate's 1-point margin) |
+| 3 | **kept** | 61.1% | **72.1%** | Raw neighbor listings make Jev over-weight dramatic life-safety reports |
+| 4 | rejected | 62.7% | 72.9% | 911 codes taken at face value (+0.8 on validation, under the 1-point margin) |
+| 5 | rejected | 61.8% | 69.3% | A radius-2 neighbor profile bleeds states onto intact blocks |
+| 6 | rejected | 62.0% | 67.6% | City-survey letter grades misread |
+| 7 | rejected | 59.9% | 71.8% | Fire-department severity values misread |
+| 8 | rejected | 60.3% | 72.0% | Dramatic drone values over-weighted |
+| 9 | not scored | – | – | Curator returned no valid genome |
+| 10 | rejected | 59.3% | 65.2% | Utility status under-used |
+| 11 | rejected | 59.4% | 72.0% | Drone observation values mis-mapped |
+| 12 | rejected | 58.9% | 64.6% | 911 and fire-dept reports in neighbor profiles bleed life-safety states |
+| 13 | not scored | – | – | Stopped: OpenRouter out of credit for Jev |
 
-**Checklist by workstream** (checked against `main` at `888a146`).
+The final genome is generation 3. It drops social posts, shows the block's own reports, and summarizes
+neighbors within 2 blocks instead of listing them. On the NYC validation storm, generation 0 → generation 3:
 
-| # | Workstream | Item | Status | Evidence / what's left |
-|---|---|---|---|---|
-| 1 | Storm engine | City-shaped maps (NYC and others) | Done | `storm.py`: 32×32, stylized NYC, Miami, Houston, New Orleans water masks |
-| | | 12 states + coverage assertion | Done | `LIFE_SAFETY` defined; `build` fails if coverage fails |
-| | | Report channels with timestamps | Done | 8 sources; `hour` 0–6 h |
-| | | Splits | Done | dev MIA1/HOU1/NOL1 · val NYC0 · held-out NYC1 · cities MIA2/HOU2/NOL2 |
-| | | Calibration | Partial | Baseline 56.7% dev → builder ceiling 71.5%: a 15-point gap; baseline is noisy, not near-random |
-| 2 | Mongo + compiler | Schema, locked logins, tripwire probe | Done | `mongo_setup.py`, `mongo_itest.py`, verified on Atlas |
-| | | Loader | Done | `storm_run.py load` (admin login) |
-| | | Ops → pipeline compiler | Done | `compile_pipeline`: `$geoNear`, `$match`, `$switch` |
-| | | Scorer via scorer login | Done | Truth read from Mongo; writes `runs`, `gate_scores`, `heldout_scores` |
-| 3 | Loop driver | Curator → validate → gate → lineage | Done | `driver.py`; GLM-5.2 via OpenRouter; lineage in `policies` + jsonl |
-| | | Leak guard | Done | Curator prompt and genome ops checked for towns and coordinates |
-| | | Gate rule | Done | Validation must beat the best by 1 point (`GATE_MARGIN = 0.01`) |
-| | | Rejected-idea memory | Partial | Near-duplicate op matching only; the vector-indexed `memory` collection isn't written or searched by the driver yet |
-| | | First live run | Partial | `live-1` in progress: 2 accepted, 2 rejected; dev 56.7 → 61.1, val 64.6 → 72.1. **3:30 go/no-go target: 3+ accepted, validation rising** |
-| 4 | Scoring + proof | Balanced accuracy, life-safety recall, false dispatches | Done | In `score()` and the digests |
-| | | Held-out + cities scored once | Partial | `--final` gate built; not yet run (command above) |
-| | | Filmstrip / GIF | Not started | Baseline → accepted generations → truth, then tonight |
-| | | "What it learned" card | Not started | The final policy as plain rules, each linked to the generation that found it |
-| | | Field-verified check | Not started | Optional: 20 blocks, accuracy vs Jev's confidence |
-| 5 | Live app | Dashboard API routes | Not started | Read-only login: `/api/state`, `/api/map`, `/api/block`. Contract additions: storm ids, `gate_scores` for the validation number, refs {baseline, ceiling}, report `hour` for the beat-2 feed |
-| | | Sightline connected to real data | Not started | Swap `STATES` to the engine's 12; replace mock numbers and runs with `live-1`; drop the lat/long-swap misread (cut); keep 311 and beat 7 (both real now) |
-| | | Evolution re-cut | Not started | Lineage and the hypothesis → prediction → actual → verdict card at center; add the "What it learned" card |
-| 6 | Demo + submission | Demo runbook | Done | This file |
-| | | README, submission text, Twemoji credit | Partial | README +2 lines; submission text and CC-BY credit still to do |
-| | | Merge branches | Partial | Storm work is on `main`; `rename-to-sightline` is still separate |
-| | | Video, rehearsal, submit | Not started | Record after a real run so every number is real |
-| 7 | Extras (cut first) | LangSmith | Partial | Env vars only; no tracing (free Developer plan: set `LANGSMITH_API_KEY`) |
-| | | ElevenLabs, curator swap, misread pins | Not started | Optional |
+- blocks right: 67.7% → 71.5%;
+- rescue-critical found: 35 → 37 of 57;
+- crews sent to the wrong block: 119 → 59.
 
-**Remaining, in priority order.**
+The curator's LLM cost for all 13 generations was $0.18.
 
-1. 3:30 go/no-go: finish `live-1` (3+ accepted generations, validation rising).
-2. Score tonight's storm and the other cities once with the final genome.
-3. Dashboard API routes, then connect Sightline to real data.
-4. Filmstrip/GIF and the "What it learned" card.
-5. Merge `rename-to-sightline`; README, submission text and Twemoji credit; record the video; submit.
-6. Optional (cut in this order): vector memory in the driver, LangSmith traces, the field-verified check, the
-   misread pins.
+## Status
+
+| Area | Status |
+|---|---|
+| Storm world: 8 city-shaped storms, 12 states, 8 sources, coverage assertion | Done |
+| MongoDB Atlas: schema, three locked logins, tripwire probe, integration test | Done |
+| Harness + ops → pipeline compiler + scorer via the scorer login | Done |
+| Automatic loop with gate, leak guard, memory check, lineage | Done; `live-1` ran 13 generations |
+| Dashboard API (39/39 checks), start page, stage demo on live data, offline fallback | Done, live at https://sightline-jev.vercel.app |
+| One-command backend (`sightline.sh`) | Done |
+| Tonight's storm + cities scored once | **Blocked on OpenRouter credit for Jev** (about $0.15) |
+| Video | To record |
+| Vector search in the memory check, LangSmith traces, field-verified spot check | Not done (optional; cut first) |
+
+**Remaining, in order.**
+
+1. Add OpenRouter credit.
+2. Run `./sightline.sh final live-1`, then `publish` and `deploy`.
+3. Record the video; add its link to `VIDEO_URL` in `dashboard/app/page.tsx`; redeploy.
+4. Submit.
 
 ## What we learned
 
@@ -328,39 +385,42 @@ state names and colors are in `dashboard/lib/storm-meta.json`, generated from `s
   71%. A neighbor flood summary pulled 238 intact blocks to "flooded".
 - **Some states are invisible without the right source.** Shelters and operating hospitals were right about 10%
   of the time until the pre-storm map listed facilities.
-- **An open model can curate from traces alone.** GLM-5.2 found the rumor problem in its first generation with no
-  hints about the planted habits.
-- **Cost per generation:** about $0.12 of Jev plus $0.01–0.04 of curator, over 3,111 blocks, at 30–90 seconds.
+- **An open model can curate from traces alone.** GLM-5.2 found the rumor problem in its first generation, with
+  no hints about the planted habits.
+- **The gate does its job, and has a cost.** It rejected 9 of 11 scored proposals. One of them (gen 4) was a real
+  +0.8 on validation, just under the 1-point noise margin.
+- **Operations matter at hackathon speed.** Curator replies sometimes come back empty (hidden reasoning uses up
+  the token budget), and Jev calls need purchased credit. The driver now retries, logs the provider, and the demo
+  ships a snapshot so it never depends on a live service.
 
 **Still to try.**
 
 - Validate on several storms at once, to shrink gate noise.
 - A deep-agent curator with a `validate_genome` tool and an in-memory file system only.
+- Vector search over rejected ideas in the memory check.
 - A per-account exclusion op.
 - Real data: NYC 311 open data and FEMA damage assessments.
 - LangSmith experiments per generation.
-- A smaller grid, so the on-stage arena shows more iterations.
 
-## Video and hosting
+## Video and submission
 
 **Video (2–3 minutes).**
 
-1. Screen-record the Sightline app through its 7 beats.
-2. Cut to the terminal running `driver.py`, then to the lineage on the dashboard.
+1. Screen-record the stage demo through its 7 beats.
+2. Cut to a terminal running `./sightline.sh loop` (one line per generation).
 3. Show the tripwire probe line.
 
-Record after a real run, so every number on screen is real.
+Every number on screen is from the recorded run.
 
-**Hosting for judges to explore on their own time.**
+**Submission.**
 
-- Deploy the dashboard on Vercel and have it read the recorded run.
-  - Put `MONGODB_URI_DASHBOARD` in a **server-side** environment variable only, never in browser code.
-  - That login can't read the answers or write anything, so a public URL is safe.
-- Judges can run the pipeline without any Jev or Mongo keys: use `--backend fake --truth file --no-mongo`. The
-  curator step still needs an OpenRouter key.
-- Never share the admin or scorer credentials.
+- Demo: https://sightline-jev.vercel.app
+- Code: https://github.com/hughesbrayden/sightline (start at this file)
+- Video: the recording
+
+**Safety.** The dashboard holds only the read-only login, and it can't read the answers. Never share the admin or
+scorer credentials.
 
 ---
 
-Pictures in the v4 ticket world: Twemoji (jdecked/twemoji), CC-BY 4.0. Hurricane storms are simulated; city
-outlines are stylized.
+The hurricane storms are simulated; the city outlines are stylized.
