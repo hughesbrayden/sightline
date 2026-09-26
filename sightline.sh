@@ -100,6 +100,15 @@ cmd_publish() {
   local url=${1:-$API_URL}
   say "Record the run for the offline fallback + start page ($url)"; node demo/snapshot.mjs "$url"
   say "Build the stage demo on live data"; bash demo/build_live.sh
+  say "Build Brayden's click-through story (example data, bannered) -> /story.html"; bash demo/build.sh
+  $PY - <<'PYEOF'
+import pathlib
+src = pathlib.Path("demo/sightline-demo.html").read_text()
+banner = ('<div style="position:fixed;top:0;left:0;right:0;z-index:9999;background:#a44a14;color:#fff;'
+          'font:13px IBM Plex Sans,sans-serif;padding:6px 12px;text-align:center">Illustrative walkthrough with example data. '
+          'The recorded run is at <a href="/sightline.html" style="color:#fff;font-weight:600">/sightline.html</a>.</div>')
+pathlib.Path("dashboard/public/story.html").write_text(src.replace('<div id="frame">', banner + '<div id="frame">', 1))
+PYEOF
 }
 
 cmd_dashboard() {

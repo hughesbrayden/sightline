@@ -128,17 +128,18 @@
   // (wrong) answer, and name the habit behind it.
   var POINTS_TO = {
     // report vocabularies follow their real-world counterparts: CAD call types, NYC 311, FEMA PDA levels,
-    // NFIRS incident types, PLUTO land use, RescueNet / FloodNet image labels
-    flooded_homes: /WATER RESCUE|Building-Flooded|#flooding|damage level Major|Sewer Backup|incident type 363|second floor|living room/i,
-    flooded_street: /FLOODED ROADWAY|Road-Flooded|Street Flooding|#flooding|damage level Affected/i,
-    collapsed: /BUILDING COLLAPSE|Total-Destruction|#collapse|damage level Destroyed|incident type 461|Structural Stability|came down|flattened/i,
-    fire: /FIRE:|smoke|flames|#fire|burn|incident type 111|Major-Damage/i,
-    roof_damage: /ASSIST CIVILIAN - NON-MEDICAL|roof|damage level Minor|Minor-Damage|Debris - Falling|shingles/i,
-    power_out: /UTILITY EMERGENCY - ELECTRIC|de-energized|Street Light Out|#poweroutage|no power/i,
-    downed_lines: /UTILITY EMERGENCY - ELECTRIC|line fault|incident type 444|Tree, Road-Clear|#powerlines/i,
-    road_blocked: /TREE DOWN|Tree Has Fallen|Road-Blocked|#roadclosed|incident type 813/i,
-    hospital_down: /MEDICAL - ASSIST CIVILIAN|hospital|turning ambulances/i,
-    intact: /UNDEFINED EMERGENCY|Building-No-Damage|#safe|damage level Affected|energized|HEATING|Loud Music/i
+    // NFIRS incident types, PLUTO land use, RescueNet / FloodNet image labels; each also keeps the
+    // pre-cutover codes (WATER-RESCUE, Category A-E, Minor/Major/Destroyed) so older recorded runs still read right
+    flooded_homes: /WATER RESCUE|Building-Flooded|#flooding|damage level Major|Sewer Backup|incident type 363|second floor|living room|WATER-RESCUE|water above door|Category B/i,
+    flooded_street: /FLOODED ROADWAY|Road-Flooded|Street Flooding|#flooding|damage level Affected|FLOODED-ROADWAY|water in street|Category D/i,
+    collapsed: /BUILDING COLLAPSE|Total-Destruction|#collapse|damage level Destroyed|incident type 461|Structural Stability|came down|flattened|STRUCTURE-COLLAPSE|structure down|Category A|severity Destroyed/i,
+    fire: /FIRE:|smoke|flames|#fire|burn|incident type 111|Major-Damage|dispatch code FIRE|severity Major/i,
+    roof_damage: /ASSIST CIVILIAN - NON-MEDICAL|roof|damage level Minor|Minor-Damage|Debris - Falling|shingles|STRUCTURE-DAMAGE|Category C|Building Damage/i,
+    power_out: /UTILITY EMERGENCY - ELECTRIC|de-energized|Street Light Out|#poweroutage|no power|UTILITY-OUTAGE|Power Outage/i,
+    downed_lines: /UTILITY EMERGENCY - ELECTRIC|line fault|incident type 444|Tree, Road-Clear|#powerlines|WIRES-DOWN|Downed Wire|leaning poles/i,
+    road_blocked: /TREE DOWN|Tree Has Fallen|Road-Blocked|#roadclosed|incident type 813|ROAD-OBSTRUCTION|Blocked Road|debris across|severity Minor/i,
+    hospital_down: /MEDICAL - ASSIST CIVILIAN|hospital|turning ambulances|MEDICAL-FACILITY|hospital lot flooded/i,
+    intact: /UNDEFINED EMERGENCY|Building-No-Damage|#safe|damage level Affected|energized|HEATING|Loud Music|WELFARE-CHECK|no visible damage|Category E/i
   };
   function misreadTitle(lines, x, y, pick) {
     var recs = (lines || []).slice(2).map(function (l) { return l.replace(/^- /, ''); });
@@ -149,6 +150,8 @@
     if ((h = find(function (l) { return /^\[social-post\].*verified: yes/.test(l); }))) return ['A "verified" rumor taken literally', h];
     if ((h = find(function (l) { return /^\[city-survey\].*damage level (Destroyed|Major|Minor|Affected|Inaccessible)$/.test(l) && l.indexOf(own) >= 0; }))) return ["FEMA's damage scale read at face value", h];
     if ((h = find(function (l) { return /^\[fire-dept\].*incident type \d+$/.test(l) && l.indexOf(own) >= 0; }))) return ["A fire-department incident code read at face value", h];
+    if ((h = find(function (l) { return /^\[city-survey\].*Category [A-E]$/.test(l) && l.indexOf(own) >= 0; }))) return ['A damage scale read at face value', h];
+    if ((h = find(function (l) { return /^\[fire-dept\].*severity (Minor|Major|Destroyed)$/.test(l) && l.indexOf(own) >= 0; }))) return ["A second agency's scale read at face value", h];
     if ((h = find(function (l) { return /^\[311\].*(HEATING|Noise - Residential)/.test(l); }))) return ['A routine 311 request read as storm damage', h];
     if ((h = find(function (l) { return /^\[911-call\]/.test(l) && l.indexOf(own) < 0; }))) return ["A neighbor's 911 call taken as this block's", h];
     if ((h = find(function (l) { return /^\[utility-feed\].*de-energized/.test(l); }))) return ['A feeder-wide outage read as the whole story', h];
