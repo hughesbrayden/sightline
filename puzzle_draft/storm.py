@@ -39,6 +39,7 @@ ROOT = Path(__file__).resolve().parent.parent
 STORM_DIR = ROOT / "puzzle_draft" / "storms"
 SECRET_DIR = ROOT / "puzzle_draft" / "secret" / "storms"
 W = H = 32
+WORLD_VERSION = "v3-real-vocab"  # bump when report vocabularies or rules change; once-only held-out scoring is per version
 
 STATES = ["intact", "flooded_street", "flooded_homes", "roof_damage", "collapsed", "fire", "road_blocked",
           "power_out", "downed_lines", "shelter_open", "hospital_ok", "hospital_down"]

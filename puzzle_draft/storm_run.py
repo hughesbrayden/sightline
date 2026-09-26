@@ -202,8 +202,11 @@ def cmd_run(args) -> None:
     if args.final:
         from db import connect
         scorer = connect("scorer")
-        if done := scorer.heldout_scores.count_documents({"genome_id": genome["id"], "town": {"$in": towns}}):
-            sys.exit(f"{genome['id']} already has {done} once-only scores; held-out is scored once. Not running.")
+        # once per genome per world version: new storm data may be scored once; old scores stay on record
+        if done := scorer.heldout_scores.count_documents({"genome_id": genome["id"], "town": {"$in": towns},
+                                                          "world": storm.WORLD_VERSION}):
+            sys.exit(f"{genome['id']} already has {done} once-only scores on world {storm.WORLD_VERSION}; "
+                     "held-out is scored once. Not running.")
         if args.run is None or args.gen is None:
             sys.exit("--final needs --run and --gen (the lineage generation this genome came from), for the dashboard")
     r = evaluate(genome, towns, backend, args.truth, args.workers)
@@ -219,7 +222,8 @@ def cmd_run(args) -> None:
         for t in towns:
             s = r["towns"][t]
             scorer.heldout_scores.insert_one({
-                "genome_id": genome["id"], "town": t, "split": next(k for k, v in storm.SPLITS.items() if t in v),
+                "genome_id": genome["id"], "town": t, "world": storm.WORLD_VERSION,
+                "split": next(k for k, v in storm.SPLITS.items() if t in v),
                 "score": s["balanced_accuracy"], "life_safety_recall": s["life_safety_recall"],
                 "life_safety_found": s["life_safety_found"], "life_safety_total": s["life_safety_total"],
                 "false_dispatches": s["false_dispatches"], "created": datetime.now(timezone.utc)})
@@ -285,7 +289,7 @@ def main() -> None:
     p.set_defaults(fn=cmd_truth)
     sub.add_parser("load").set_defaults(fn=cmd_load)
     p = sub.add_parser("refs", help="store baseline + builder-ceiling scores for the dashboard")
-    p.add_argument("--ceiling", default="ref_full_v2")
+    p.add_argument("--ceiling", default="ref_full_v3c")
     p.set_defaults(fn=cmd_refs)
     p = sub.add_parser("preview")
     p.add_argument("town")

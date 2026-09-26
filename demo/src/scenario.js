@@ -223,7 +223,7 @@
     { run: 1, status: 'accepted', hyp: 'Baseline: the 12 reports nearest the block by vector search.', ops: [] },
     { run: 2, status: 'accepted', hyp: 'The utility outage feed looks mirrored. Swap its latitude and longitude.', ops: [{ knob: 'correct', op: 'change', text: 'Utility feed: swap lat and long.' }], predicted: 0.08 },
     { run: 3, status: 'rejected', hyp: 'Trust the city survey over the fire department; its scale is more detailed.', ops: [{ knob: 'weight', op: 'change', text: 'City survey weight 2, fire department 0.5.' }], predicted: 0.06, trap: true },
-    { run: 4, status: 'accepted', hyp: 'The two surveys use different scales. Translate both to one: "Level 3" and "Category C" both mean homes flooded.', ops: [{ knob: 'gloss', op: 'add', text: 'Map both agencies\' scales to the 12 states.' }], predicted: 0.1 },
+    { run: 4, status: 'accepted', hyp: 'The two agencies use different codes. Translate both to one: FEMA "Major" and NFIRS "363" both mean water inside homes.', ops: [{ knob: 'gloss', op: 'add', text: 'Map both agencies\' scales to the 12 states.' }], predicted: 0.1 },
     { run: 5, status: 'accepted', hyp: 'Three social accounts post confident collapse reports that never match drone passes. Drop them.', ops: [{ knob: 'exclude', op: 'add', text: 'Drop accounts R2, R5 and R7.' }], predicted: 0.07 },
     { run: 6, status: 'accepted', hyp: 'Flooding spreads across block edges. Add how many blocks within 200 m report water.', ops: [{ knob: 'related', op: 'add', text: 'Neighbor summary: $geoNear, 200 m, water reports only.' }], predicted: 0.08 },
     { run: 7, status: 'skipped', hyp: 'Weight the city survey higher than the fire department.', ops: [], note: 'Too close to run 3, which failed. Not scored.' },
@@ -300,7 +300,7 @@
       { time: '23:42', src: 'Social', text: 'WHOLE BLOCK COLLAPSED on Court St, confirmed!!', odd: true },
       { time: '23:42', src: 'Utility', text: 'Outage at (-74.004, 40.708): lands in the East River.', odd: true },
       { time: '23:43', src: '311', text: 'Street flooded, cars floating, Water St.' },
-      { time: '23:44', src: 'Survey', text: 'City survey: Category C, Van Brunt St.' },
+      { time: '23:44', src: 'Survey', text: 'FEMA survey: damage level Major, Van Brunt St.' },
       { time: '23:44', src: 'Drone', text: 'Pass 12: standing water to first-floor windows.' }
     ];
 
@@ -310,7 +310,7 @@
       { n: 2, i: mSwap, title: 'Coordinates read as written', jev: 'Power out', truth: 'Intact',
         text: 'The utility feed swaps latitude and longitude. Outages landed in the river and on the wrong blocks.' },
       { n: 3, i: mScale, title: 'A damage scale read at face value', jev: 'Minor damage', truth: 'Homes flooded',
-        text: 'On the city survey, "Category C" means homes flooded, not minor damage.' },
+        text: 'On the FEMA survey, "Major" means water inside homes, not structural collapse.' },
       { n: 4, i: mDrift, title: 'A 911 location taken as exact', jev: 'Street flooded', truth: 'Homes flooded',
         text: 'Caller locations drift up to a block. The flooded homes next door went unmatched.' }
     ].map(function (m) { m.r = Math.floor(m.i / N); m.c = m.i % N; m.where = where(m.r, m.c); return m; });
@@ -335,7 +335,7 @@
       { hyp: 'Generation 0: the 12 reports nearest each block, taken at face value.', q: 0.30, valOff: -0.013 },
       { hyp: 'Outage reports land in the river. The utility feed must have latitude and longitude swapped.', rule: 'Swap the utility feed back to latitude, longitude.', predicted: 0.08, q: 0.44, valOff: -0.022 },
       { hyp: 'The city survey is more detailed than the fire department’s. Trust it more.', predicted: 0.06, q: 0.55, val: 0.418, trap: true },
-      { hyp: '"Level 3" and "Category C" both mean homes flooded. Translate both agencies’ scales before Jev reads them.', rule: 'Translate the fire-department and city damage scales.', predicted: 0.10, q: 0.57, valOff: -0.025 },
+      { hyp: 'FEMA "Major" and NFIRS "363" both mean water inside homes. Translate both agencies’ codes before Jev reads them.', rule: 'Translate the fire-department codes and the FEMA damage levels.', predicted: 0.10, q: 0.57, valOff: -0.025 },
       { hyp: 'Three "verified" accounts post collapses no drone pass ever confirms. They’re rumors; drop them.', rule: 'Drop accounts that never match a drone pass.', predicted: 0.07, q: 0.66, valOff: -0.028 },
       { hyp: 'Flooding spreads across block edges. Add neighbors’ flood reports within 200 m.', rule: 'Pull neighbors’ flood reports only, within 200 m.', predicted: 0.08, q: 0.74, valOff: -0.028 },
       { hyp: 'Weight the city survey above the fire department.', skippedLike: 2 },
