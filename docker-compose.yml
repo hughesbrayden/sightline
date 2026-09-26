@@ -1,0 +1,18 @@
+# Local Atlas (same engine as cloud Atlas, including vector search) for dev and as a demo fallback.
+#   docker compose up -d
+#   python puzzle_draft/mongo_setup.py setup
+services:
+  mongo:
+    image: mongodb/mongodb-atlas-local:latest
+    container_name: jevly-mongo
+    ports:
+      - "27017:27017"
+    environment:
+      MONGODB_INITDB_ROOT_USERNAME: admin
+      MONGODB_INITDB_ROOT_PASSWORD: jevly-local-admin
+    volumes:
+      - jevly-mongo-data:/data/db
+      - jevly-mongo-config:/data/configdb
+volumes:
+  jevly-mongo-data:
+  jevly-mongo-config:
