@@ -1,0 +1,11 @@
+{
+  "id": "baseline",
+  "rationale": {"hypothesis": "No harness: show Jev the 12 reports nearest the block, as a plain geo lookup would.",
+                "refuted_if": "n/a"},
+  "prediction": "n/a",
+  "ops": [
+    {"op": "include_own", "k": 12},
+    {"op": "include_related", "radius": 2, "show": "raw"}
+  ],
+  "format": "raw"
+}

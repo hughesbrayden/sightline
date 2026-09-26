@@ -85,11 +85,11 @@ class JevBackend:
         self.client, self.model = make_client()
         self.cache = Cache() if use_cache else None
 
-    def ask(self, state: str, criteria: dict, votes=None) -> dict:
+    def ask(self, state: str, criteria: dict, votes=None, instructions: str = INSTRUCTIONS) -> dict:
         from typesafe_sdk import Choice
 
         key = hashlib.sha1(
-            json.dumps([self.model, INSTRUCTIONS, state, criteria], sort_keys=True).encode()
+            json.dumps([self.model, instructions, state, criteria], sort_keys=True).encode()
         ).hexdigest()
         if self.cache and (hit := self.cache.get(key)):
             return {**hit, "cached": True}
@@ -100,7 +100,7 @@ class JevBackend:
                 response = self.client.system_one(
                     model=self.model,
                     state=state,
-                    questions={"pixel": Choice(instructions=INSTRUCTIONS, criteria=criteria)},
+                    questions={"pixel": Choice(instructions=instructions, criteria=criteria)},
                 )
                 break
             except Exception:
@@ -128,7 +128,7 @@ class FakeBackend:
 
     name = "fake"
 
-    def ask(self, state: str, criteria: dict, votes=None) -> dict:
+    def ask(self, state: str, criteria: dict, votes=None, instructions: str = INSTRUCTIONS) -> dict:
         names = list(criteria)
         score = {n: 0.0 for n in names}
         for color, weight in votes or []:

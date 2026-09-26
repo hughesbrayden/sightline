@@ -6,3 +6,7 @@ __pycache__/
 *.pyc
 puzzle_draft/cache/
 out/
+
+# Generated hurricane worlds (rebuild with storm_run.py build)
+puzzle_draft/storms/
+puzzle_draft/secret/storms/
