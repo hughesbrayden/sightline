@@ -147,7 +147,7 @@ def fetch(key: str) -> Path:
     if path.exists():
         return path
     for name in (cp, f"{cp}-fe0f"):
-        request = urllib.request.Request(TWEMOJI_URL.format(name), headers={"User-Agent": "pixel-test"})
+        request = urllib.request.Request(TWEMOJI_URL.format(name), headers={"User-Agent": "sightline"})
         try:
             with urllib.request.urlopen(request, timeout=20) as response:
                 path.write_bytes(response.read())

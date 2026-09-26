@@ -1,4 +1,4 @@
-# Jevly
+# Sightline
 
 A harness that teaches itself what context to show **Jev**, a fast decision model. The testbed is a support-ticket routing puzzle where correct routing draws a hidden picture, so you can watch accuracy come into focus.
 
