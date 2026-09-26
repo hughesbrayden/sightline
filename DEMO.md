@@ -175,7 +175,15 @@ Anyone on the team can do this from `main`. It needs only `OPENROUTER_API_KEY` a
    This scores NYC1 (tonight) and MIA2, HOU2 and NOL2 (next season): 3,111 Jev calls, about $0.12 and 1 minute.
    It writes `heldout_scores` plus the map rows the dashboard shows. It refuses to run if that genome was
    already scored.
-4. Paste the printed lines into the status section below. Never feed these numbers back into the loop.
+4. Also score the **baseline** once on tonight's storm, so the stage demo can show generation 0 on NYC1 (beats 1–2):
+
+   ```bash
+   python puzzle_draft/storm_run.py run puzzle_draft/storm_genomes/baseline.json --split heldout --final --run live-1 --gen 0
+   ```
+
+   The baseline was never tuned on anything, so this is a fair "before". The stage demo switches from NYC0 to
+   NYC1 by itself once both are scored.
+5. Paste the printed lines into the status section below. Never feed these numbers back into the loop.
 
 ### The v4 fallback (ticket routing)
 
