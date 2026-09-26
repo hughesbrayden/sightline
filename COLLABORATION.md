@@ -1,4 +1,4 @@
-# Jevly: collaboration guide
+# Sightline: collaboration guide
 
 Welcome, Kishore. This is everything you need to pick up the project. What we're building, where it stands, how to run it, and what's next.
 
