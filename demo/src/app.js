@@ -184,9 +184,31 @@
   var legendStates = ['intact', 'minor', 'street', 'home', 'wind', 'major', 'destroyed', 'power'];
   var NYC = F.place || 'New York · Lower Manhattan and the Brooklyn waterfront';
 
-  // ---------- beat 1: generation 0 ----------
+  // ---------- beat 1: calm night ----------
+  function Calm(props) {
+    var sources = [['911 calls', 'call', 'locations drift'], ['311 tickets', 'ticket', ''], ['Drone passes', 'drone', ''], ['Social posts', 'social', 'includes rumors'], ['Utility outage feed', 'utility', 'lat/long swapped'], ['Fire dept. and city damage surveys', null, 'two different scales']];
+    return html`<div className="screen">
+      <${Header} place=${NYC} clock="Tuesday 21:00" mode="live" modeLabel="Live · generation 0" />
+      <div className="body">
+        <${MapStage} resetKey="calm" cells=${F.calm} caption="Tuesday 21:00" meta="no reports" />
+        <div className="panel">
+          <div className="intro"><h2>All quiet</h2><p className="muted lead">1,024 city blocks, mapped block by block. The storm is forecast to make landfall around 23:30.</p></div>
+          <div className="stats"><${Stat} label="Reports tonight" value="0" size="xl" /><${Stat} label="Blocks flagged" value="0" size="xl" /><${Stat} label="Harness deployed" value="Gen 0" size="xl" note="unevolved: nearest 12 reports" /></div>
+          <div className="col gap10"><strong className="small">Sources connected</strong>
+            ${sources.map(function (src) {
+              return html`<div className="row gap10 small" key=${src[0]}><span style=${src[1] ? pinStyle(src[1]) : { width: 10, height: 10, background: 'var(--line-strong)' }}></span><span>${src[0]}</span><span className="muted push">${src[2]}</span></div>`;
+            })}
+          </div>
+          <p className="small muted" style=${{ margin: 0 }}>Jev, the decision model, is frozen for the whole demo. Only the harness around it will change.</p>
+          <div className="panel-foot"><${Cta} label="Storm makes landfall" onClick=${props.onNext} /><${S.DamageLegend} states=${legendStates} /></div>
+        </div>
+      </div>
+    </div>`;
+  }
+
+  // ---------- beats 2 and 3: storm hits, generation 0 ----------
   function Gen0(props) {
-    var ph = useState('reports'), phase = ph[0], setPhase = ph[1];
+    var phase = props.phase;
     var tick = useTicker(true, phase, 250);
     var map, panel, cta = null;
     if (phase === 'reports') {
@@ -202,7 +224,7 @@
         <div className="feed">${feed.map(function (f, k) {
           return html`<div className="feedrow" key=${k}><span className="mono muted xs">${f.time}</span><span className="xs strong muted">${f.src}</span><span>${f.text}</span>${f.odd ? html`<span className="flag">Looks off</span>` : html`<span></span>`}</div>`;
         })}</div>`;
-      cta = html`<${Cta} label="Run generation 0" onClick=${function () { setPhase('assess'); }} />`;
+      cta = html`<${Cta} label="Run generation 0" onClick=${props.onNext} />`;
     } else {
       var mapped = Math.min(1024, tick * 48);
       var cells = F.zero.cells.map(function (c, i) { return i < mapped ? c : F.calm[i]; });
@@ -324,9 +346,16 @@
     return html`<div className="screen">
       <${Header} place=${F.backtestPlace || 'New York · past storms (backtest) and a validation town, assessments locked to the scorer'} clock=${st.started ? 'Generation ' + cur.gen + ' of ' + LAST : 'Ready'} mode="training" modeLabel=${!st.started ? 'Evolution ready' : st.done ? 'Evolution done' : 'Evolution live'} />
       <div className="body gap48">
-        <div className="col gap10">
-          <${S.DamageMap} cells=${cells} confidence=${conf} cellSize=${14} caption=${caption} meta=${meta} label="Backtest map" />
-          <div className="whygate"><strong className="xs">Why there's a gate</strong><span className="xs">An earlier, ungated loop climbed from 46% to 93% on its own storms while held-out fell from 50% to 45%. It was fooling itself. Now every change must also raise a validation town it never trains on.</span></div>
+        <div className="col gap12" style=${{ width: 419, flex: 'none' }}>
+          <span className="tag tag-train"><span className="pill-dot"></span>Evolving · past storms with finished assessments</span>
+          <${S.DamageMap} cells=${cells} confidence=${conf} cellSize=${12} caption=${caption} meta=${meta} label="Backtest map" />
+          <div className="tonight-mini">
+            <${S.DamageMap} cells=${F.zero.cells} confidence=${F.zero.conf} cellSize=${4} label="Tonight's generation 0 map" />
+            <div className="col gap6">
+              <span className="tag tag-live"><span className="pill-dot"></span>Tonight · live</span>
+              <span className="xs">Still on generation 0: <span className="mono">${pct(F.zero.acc)}</span> right. It waits here for the evolved harness.</span>
+            </div>
+          </div>
         </div>
         <div className="col gap20 grow">
           <div className="gencard">
@@ -350,11 +379,14 @@
           </div>
           <div className="col gap6">
             <div className="row between"><strong className="small">Lineage</strong><span className="xs muted">Kept changes stack on the line. Rejected and remembered ideas hang off it.</span></div>
-            <${S.LineageTree} gens=${lineage} total=${GENS.length} current=${st.started && !st.done ? cur.gen : null} width=${800} height=${150} label="Lineage of the harness" />
+            <${S.LineageTree} gens=${lineage} total=${GENS.length} current=${st.started && !st.done ? cur.gen : null} width=${860} height=${150} label="Lineage of the harness" />
           </div>
-          <div className="row gap24 end">
-            <${S.ScoreCurve} train=${bestLine} heldout=${tries} xLabels=${GENS.map(function (G) { return 'Gen ' + G.gen; })} trainLabel="Lineage, validation" heldoutLabel="Each proposal" min=${0.2} max=${1} width=${480} height=${150} label="Validation score by generation" />
-            <div className="push"><${Cta} label=${F.replayCta || "Replay tonight with the evolved harness"} onClick=${props.onNext} /></div>
+          <div className="row gap24" style=${{ alignItems: 'flex-start' }}>
+            <${S.ScoreCurve} train=${bestLine} heldout=${tries} xLabels=${GENS.map(function (G) { return 'Gen ' + G.gen; })} trainLabel="Lineage, validation" heldoutLabel="Each proposal" min=${0.2} max=${1} width=${440} height=${150} label="Validation score by generation" />
+            <div className="col gap16 grow">
+              <div className="whygate"><strong className="xs">Why there's a gate</strong><span className="xs">An earlier, ungated loop climbed from 46% to 93% on its own storms while held-out fell from 50% to 45%. It was fooling itself. Now every change must also raise a validation town it never trains on.</span></div>
+              <${Cta} label=${F.replayCta || "Replay tonight with the evolved harness"} onClick=${props.onNext} />
+            </div>
           </div>
         </div>
       </div>
@@ -400,28 +432,36 @@
           <div className="intro"><span className="tag tag-live">The policy is the product</span><h2 className="big">What it learned</h2>
             <p className="muted lead">${rules.length} rules the harness discovered on its own, each traced to the generation that found it. Jev never changed. Only these did.</p></div>
           <${S.PolicyRules} rules=${rules} />
+          <div className="facts"><span>The answers are locked to the scorer. The harness's own login was refused.</span><span>Confidence isn't a check. A few field-verified blocks are.</span><span>One 1,024-block map in about 15 seconds.</span></div>
           <p className="pitch">${F.pitch || "We froze the model and let the harness evolve how it reads the world: gated, remembered, and proven on a storm it never saw."}</p>
         </div>
         <div className="col gap12" style=${{ width: 420, flex: 'none' }}>
-          <span className="tag tag-train">A town it never saw</span>
+          <span className="tag tag-train">A city it never saw</span>
           ${town ? html`
-          <${S.DamageMap} cells=${town.cells} confidence=${town.conf} cellSize=${12} caption=${town.name + ' · blind'} meta="scored once" label=${town.name + ' damage map'} />
+          <${S.DamageMap} cells=${town.cells} confidence=${town.conf} cellSize=${10} caption=${town.name + ' · blind'} meta="scored once" label=${town.name + ' damage map'} />
           <div className="row gap24">
             <${Stat} label="Blocks right" value=${pct(town.acc)} size="xl" color="var(--good)" />
             <${Stat} label="Rescue-critical found" value=${town.critFound} unit=${'/' + town.critTotal} size="xl" />
           </div>` : html`<div className="whygate"><strong className="xs">Pending</strong><span className="xs">Miami, Houston and New Orleans next season are scored once with the frozen policy, after the final run.</span></div>`}
           <span className="xs muted">Same harness, its own lineage. Scored once against the official assessment; never used for selection.</span>
+          ${F.cities && F.cities.length ? html`<div className="col gap8 ruled">
+            <strong className="xs">Generation 0 in each new city, before any evolution</strong>
+            ${F.cities.map(function (c) {
+              return html`<div className="barrow" key=${c.key}><span className="xs">${c.name}</span><div className="track"><div style=${{ width: (c.start * 100).toFixed(0) + '%' }}></div></div><span className="mono xs right">${(c.start * 100).toFixed(0)}</span></div>`;
+            })}
+            <span className="xs muted">Each new city starts further ahead: the harness brings its remembered lessons along, then grows that city's own lineage.</span>
+          </div>` : null}
         </div>
       </div>
     </div>`;
   }
 
   // ---------- shell ----------
-  var BEATS = ['Generation 0', 'Fitness signal', 'Evolution', 'Replay', 'What it learned'];
+  var BEATS = ['Calm night', 'Storm hits', 'Generation 0', 'Fitness signal', 'Evolution', 'Replay', 'What it learned'];
 
   function App() {
     var evo = useEvolution();
-    var s1 = useState(Math.min(5, Math.max(1, Number(new URLSearchParams(location.search).get('beat')) || 1))), step = s1[0], setStep = s1[1];  // ?beat=N deep link
+    var s1 = useState(Math.min(7, Math.max(1, Number(new URLSearchParams(location.search).get('beat')) || 1))), step = s1[0], setStep = s1[1];  // ?beat=N deep link
     var go = function (n) { setStep(Math.max(1, Math.min(BEATS.length, n))); };
     var stepRef = useRef(step); stepRef.current = step;
     useEffect(function () {
@@ -434,10 +474,12 @@
       return function () { window.removeEventListener('keydown', onKey); };
     }, []);
     var next = function () { go(step + 1); };
-    var screen = step === 1 ? html`<${Gen0} onNext=${next} />`
-      : step === 2 ? html`<${Fitness} onNext=${next} />`
-      : step === 3 ? html`<${Evolution} evo=${evo} onNext=${next} />`
-      : step === 4 ? html`<${Replay} onNext=${next} />`
+    var screen = step === 1 ? html`<${Calm} onNext=${next} />`
+      : step === 2 ? html`<${Gen0} phase="reports" onNext=${next} />`
+      : step === 3 ? html`<${Gen0} phase="assess" onNext=${next} />`
+      : step === 4 ? html`<${Fitness} onNext=${next} />`
+      : step === 5 ? html`<${Evolution} evo=${evo} onNext=${next} />`
+      : step === 6 ? html`<${Replay} onNext=${next} />`
       : html`<${Learned} />`;
     var est = evo.st;
     var evoLabel = !est.started ? 'Evolution not started' : est.done ? 'Evolution done · ' + LAST + ' generations' : (F.live ? 'Replaying recorded run · generation ' : 'Evolving · generation ') + est.gen + ' of ' + LAST;
