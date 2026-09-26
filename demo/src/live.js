@@ -266,7 +266,7 @@
             var F = {
               live: true, run: run, night: night, bestGen: best,
               place: 'New York · ' + (heldNYC ? "tonight's storm (held-out, simulated)" : 'a past storm (the validation storm, simulated)'),
-              backtestPlace: 'Past storms: Miami, Houston, New Orleans (backtest) · New York validation storm · assessments locked to the scorer',
+              backtestPlace: 'Past storms: Miami, Houston, New Orleans (backtest) · validation storms (the gate) · assessments locked to the scorer',
               replayNote: heldNYC ? "Same reports. Same frozen Jev. Only the harness changed. Tonight's storm is scored once, never trained on."
                 : 'Same reports. Same frozen Jev. Only the harness changed. This is the validation storm the gate used; tonight\'s storm is scored once at the end.',
               sources: 'eight kinds of sources',

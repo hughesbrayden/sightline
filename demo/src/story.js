@@ -429,7 +429,7 @@
     var clock = String(Math.floor(secs / 60)).padStart(2, '0') + ':' + String(secs % 60).padStart(2, '0');
 
     return html`<div className="screen">
-      <${Header} place=${F.live ? 'Replay of recorded run ' + F.run + ' · backtest Miami, Houston, New Orleans · gate on the NYC validation storm' : 'New York · Storm 1, October · official assessment on file, locked to the scorer'} clock=${'Generation ' + (st.started ? run.run - 1 : 0) + ' of ' + LAST + ' · elapsed ' + clock} mode="training"
+      <${Header} place=${F.live ? 'Replay of recorded run ' + F.run + ' · backtest Miami, Houston, New Orleans · gate on the validation storms' : 'New York · Storm 1, October · official assessment on file, locked to the scorer'} clock=${'Generation ' + (st.started ? run.run - 1 : 0) + ' of ' + LAST + ' · elapsed ' + clock} mode="training"
         modeLabel=${!st.started ? 'Evolution ready' : st.done ? 'Evolution done' : 'Evolution live'}
         right=${st.started ? html`<button className="ghost" onClick=${function () { setSt(init); }}>Reset</button>` : null} />
       <div className="body">

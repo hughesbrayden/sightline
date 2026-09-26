@@ -7,7 +7,7 @@ import { fileURLToPath } from "node:url";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const BASE = (process.argv[2] || "https://sightline-dashboard.vercel.app").replace(/\/$/, "");
-const RUN = process.argv[3] || "live-1";
+const RUN = process.argv[3] || "live-2";
 const snap = {};
 const realFetch = globalThis.fetch;
 globalThis.fetch = async (url) => {  // record every API response the demo makes, keyed by path

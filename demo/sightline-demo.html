@@ -1562,7 +1562,7 @@ button:disabled { opacity: 0.4; cursor: default; }
     var clock = String(Math.floor(secs / 60)).padStart(2, '0') + ':' + String(secs % 60).padStart(2, '0');
 
     return html`<div className="screen">
-      <${Header} place=${F.live ? 'Replay of recorded run ' + F.run + ' · backtest Miami, Houston, New Orleans · gate on the NYC validation storm' : 'New York · Storm 1, October · official assessment on file, locked to the scorer'} clock=${'Generation ' + (st.started ? run.run - 1 : 0) + ' of ' + LAST + ' · elapsed ' + clock} mode="training"
+      <${Header} place=${F.live ? 'Replay of recorded run ' + F.run + ' · backtest Miami, Houston, New Orleans · gate on the validation storms' : 'New York · Storm 1, October · official assessment on file, locked to the scorer'} clock=${'Generation ' + (st.started ? run.run - 1 : 0) + ' of ' + LAST + ' · elapsed ' + clock} mode="training"
         modeLabel=${!st.started ? 'Evolution ready' : st.done ? 'Evolution done' : 'Evolution live'}
         right=${st.started ? html`<button className="ghost" onClick=${function () { setSt(init); }}>Reset</button>` : null} />
       <div className="body">
@@ -1579,6 +1579,7 @@ button:disabled { opacity: 0.4; cursor: default; }
           <div className="row gap40 end"><${Stat} label=${F.live ? 'Validation balanced accuracy, lineage' : 'Blocks right, lineage so far'} value=${pct(bestAcc)} size="xxl" color="var(--series-heldout)" /><${Stat} label="Since generation 0" value=${bestAcc != null && startAcc != null ? sgn(bestAcc - startAcc) + ' pts' : '—'} size="md" color="var(--good)" /></div>
           <div className="itercard">
             <div className="row between"><strong>${!st.started ? 'Ready' : st.done ? 'All ' + LAST + ' generations done' : 'Generation ' + (run.run - 1)}</strong><span className="muted xs">${st.started && !st.done && src.predicted != null ? 'Predicts +' + (src.predicted * 100).toFixed(0) + ' points' : ''}</span></div>
+            ${F.live && st.started && run.trace ? html`<a href=${run.trace} target="_blank" rel="noopener" className="xs" style=${{ color: 'var(--accent)' }}>Open this generation's LangSmith trace ↗</a>` : null}
             <span>${!st.started ? 'Press Start evolution. Each generation proposes one change, compiles it to a MongoDB pipeline, has Jev backtest every block, scores the map against the locked assessment, and joins the lineage only if the score rises.' : st.done ? 'The evolved harness is saved to the lineage and is what runs on the next live storm.' : src.hyp}</span>
             <div className="phases">${['Propose', 'Compile', 'Backtest', 'Score', 'Verdict'].map(function (name) {
               var names = plan.map(function (p) { return p[0]; });

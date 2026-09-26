@@ -17,7 +17,7 @@
 #   final <run>                score tonight's storm + next season's cities ONCE with the run's best genome
 #                              (and the baseline on tonight, for the before/after). Never fed back into the loop.
 # Dashboard feed
-#   publish [api-url]          record the run for the offline fallback + start-page numbers; rebuild the stage demo
+#   publish [api-url]          record DEMO_RUN (default live-2) for the offline fallback + start page; rebuild the demo pages
 #   dashboard                  run the dashboard locally (http://localhost:3000)
 #   deploy                     deploy the dashboard to Vercel (production)
 #   validate [url]             39 contract checks against the dashboard API
@@ -30,6 +30,7 @@ set -euo pipefail
 cd "$(dirname "$0")"
 PY=${PYTHON:-python3}
 API_URL=${SIGHTLINE_API:-https://sightline-jev.vercel.app}
+DEMO_RUN=${DEMO_RUN:-live-2}  # the run the judge demo is pinned to (publish records + builds it)
 say() { printf '\n\033[1m== %s\033[0m\n' "$*"; }
 
 cmd_setup() {
@@ -98,9 +99,9 @@ cmd_final() {
 
 cmd_publish() {
   local url=${1:-$API_URL}
-  say "Record the run for the offline fallback + start page ($url)"; node demo/snapshot.mjs "$url"
-  say "Build the stage demo on live data"; bash demo/build_live.sh
-  say "Build the click-through story + arena on live data (the default demo) -> /story.html"; bash demo/build_live.sh story
+  say "Record the run for the offline fallback + start page ($url)"; node demo/snapshot.mjs "$url" "$DEMO_RUN"
+  say "Build the stage demo on live data ($DEMO_RUN)"; RUN=$DEMO_RUN bash demo/build_live.sh
+  say "Build the click-through story + arena on live data (the default demo) -> /story.html"; RUN=$DEMO_RUN bash demo/build_live.sh story
   say "Build the example-data story (bannered) -> /story-example.html"; bash demo/build.sh
   $PY - <<'PYEOF'
 import pathlib
