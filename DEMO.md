@@ -14,6 +14,7 @@ a storm it never saw, and can't cheat because MongoDB locks the answers away.
 
 - [The pitch](#the-pitch)
 - [Architecture](#architecture)
+- [Data model](#data-model)
 - [The harness loop](#the-harness-loop)
 - [Run the backend](#run-the-backend)
 - [Score tonight's storm (once)](#score-tonights-storm-once)
@@ -85,6 +86,155 @@ flowchart LR
   classDef answer fill:#f6dcd9,stroke:#b0271f,color:#15191b;
   class KEY answer;
 ```
+
+### Data model
+
+Everything lives in one MongoDB Atlas database, `jevly`, in three layers joined by **natural keys**. There are no
+ObjectId references, so any collection can be read on its own and joined with a plain `$match` or `$lookup`:
+
+- **World** (one per world version, written once by the loader): `blocks`, `reports` and `assessments`, keyed by
+  `(town, x, y)`. A *town* is one storm on one city map (for example `NYC1` is tonight's storm in New York).
+- **Experiment** (one per run, written as the loop goes): `policies`, `runs`, `gate_scores` and `memory`, keyed by
+  `(run, gen)`. A *run* is one lineage (`live-2`); a *generation* is one proposed policy (a genome) and its evaluation.
+- **Evaluation** (once only): `heldout_scores`, keyed by `(genome_id, town, world)`. The final policy's score on
+  storms it never saw, plus the baseline's score from the same world.
+
+```mermaid
+erDiagram
+  BLOCKS ||--o{ REPORTS : "filed at (town, x, y)"
+  BLOCKS ||--|| ASSESSMENTS : "answer key (town, x, y)"
+  POLICIES ||--o{ POLICIES : "parent gen"
+  POLICIES ||--o{ RUNS : "one row per block per storm (run, gen)"
+  RUNS }o--|| BLOCKS : "(town, x, y)"
+  POLICIES ||--o{ GATE_SCORES : "validation score per storm (run, gen)"
+  POLICIES ||--o| MEMORY : "lesson (run, gen)"
+  POLICIES ||--o{ HELDOUT_SCORES : "genome_id, once per world"
+  HELDOUT_SCORES }o--|| BLOCKS : "scored on a held-out town"
+
+  BLOCKS {
+    string town PK "storm id, e.g. NYC1"
+    int x PK
+    int y PK
+    array loc "2d index, for $geoNear"
+    string land_use
+    float elev
+  }
+  REPORTS {
+    string doc_id PK
+    string town FK
+    int x FK
+    int y FK
+    string source "911-call, 311, social-post, ..."
+    string value "the source's own code"
+    string text "what Jev reads"
+    float hour "0-6 h after landfall"
+  }
+  ASSESSMENTS {
+    string town PK
+    int x PK
+    int y PK
+    string state "one of 12 states: scorer login only"
+  }
+  POLICIES {
+    string run PK
+    int gen PK
+    int parent FK "gen it was proposed from"
+    string genome_id "run_gNN"
+    string status "running, accepted, rejected, invalid"
+    array ops "the genome"
+    array compiled_pipeline "ops as a MongoDB pipeline"
+    object rationale "hypothesis, refuted_if"
+    object prediction
+    object dev_score
+    string gate "pass / fail, never the number"
+    object gate_detail "robust gate checks"
+    string trace_url "LangSmith"
+  }
+  RUNS {
+    object meta "run, gen, town (time-series metaField)"
+    date ts
+    int x
+    int y
+    string pick "Jev's answer"
+    float conf
+    object probs
+    array lines "exactly what Jev saw"
+    string truth "graded map, published by the scorer"
+    bool correct
+  }
+  GATE_SCORES {
+    string run FK
+    int gen FK
+    string town "validation storm"
+    float val_score "kept away from the curator"
+    string gate
+  }
+  MEMORY {
+    string run FK
+    int gen FK
+    string kind "accepted, rejected, screened_out, skipped"
+    string text "the lesson"
+    array signature "structural change, for repeat detection"
+    array embedding "1024-d, $vectorSearch index memory_vec"
+  }
+  HELDOUT_SCORES {
+    string genome_id PK
+    string town PK "NYC1, MIA2, HOU2, NOL2"
+    string world PK "world version"
+    float score
+    int life_safety_found
+    int false_dispatches
+  }
+```
+
+**Lifecycle, and which login touches what:**
+
+1. **Load a world** (`./sightline.sh world`, *admin* login): generate the storms, then write `blocks`, `reports` and
+   `assessments`. The answer key is written once and never updated.
+2. **Each generation** (`driver.py`):
+   - The *curator* login writes the proposal to `policies` (`status: running`).
+   - It reads `memory` with `$vectorSearch` for relevant lessons.
+   - The harness reads `reports` through the genome's compiled `$geoNear` pipeline.
+   - The *scorer* login is the only one that reads `assessments`. It writes 3,111 `runs` rows (Jev's pick, its
+     probabilities, the exact lines it saw and the graded truth) and a `gate_scores` row per validation storm.
+   - The verdict goes back to `policies` (`accepted` / `rejected`, with `gate` and `gate_detail`), and a lesson goes to
+     `memory`.
+3. **Score once** (`./sightline.sh final <run>`, *scorer* login): the best genome and the baseline on tonight's storm
+   and the cities go to `heldout_scores`, plus their `runs` rows. A second scoring of the same genome in the same
+   world is refused.
+4. **Serve** (`dashboard` login, read-only): `/api/state` joins `policies` + `gate_scores` + `heldout_scores` by run;
+   `/api/map` and `/api/block` read `runs` by `(run, gen, town)`. `./sightline.sh publish` freezes those responses
+   into `snapshot.json`, the offline fallback.
+
+**Collections** (document counts as of the `live-2` recording):
+
+| Collection | Layer | Key | Indexes | Docs | Read by | Written by |
+|---|---|---|---|---|---|---|
+| `blocks` | World | town, x, y | `loc` 2d; town+x+y | 7,175 | dashboard | admin |
+| `reports` | World | doc_id (at town, x, y) | `loc` 2d; town+source | 19,868 | curator, dashboard | admin |
+| `assessments` | World | town, x, y | town+x+y | 7,175 | **scorer only** | admin |
+| `policies` | Experiment | run, gen | run+gen | 28 (+ probe events) | curator, dashboard | curator |
+| `runs` | Experiment | meta.run, meta.gen, meta.town, x, y | time-series (`meta`, `ts`) | 93,990 | scorer, dashboard | scorer |
+| `gate_scores` | Experiment | run, gen, town (+ one `refs` doc) | run+gen | 28 | scorer, dashboard | scorer (insert-only) |
+| `memory` | Experiment | run, gen | run+kind; **vector** `memory_vec` | 46 | curator, dashboard | curator |
+| `heldout_scores` | Evaluation | genome_id, town, world | – | 10 | scorer, dashboard | scorer (insert-only) |
+
+**Design choices:**
+
+- **The lock sits at collection granularity.** Three custom roles (curator, scorer, dashboard) grant `find` and
+  `insert` per collection, so "the curator can't read the answers" is enforced by Atlas, not by application code. The
+  scorer's writes are insert-only, so scores can't be edited after the fact; the newest `refs` document wins.
+- **`runs` is a time-series collection.** It gets one row per block per storm per generation, grouped by its
+  `meta` (run, gen, town), so reading one map is one bucketed scan. It compresses well: about 119 MB of documents take
+  about 11 MB on disk (the whole database: 128 MB in 18 MB).
+- **Truth appears outside `assessments` only as a published, graded result.** The scorer copies it into `runs` rows
+  for the storms it has graded, and into tonight's rows only at the once-only scoring. That's what lets the dashboard
+  show "Assessment: …" without ever holding the answer-key login.
+- **World versions keep comparisons honest.** A new vocabulary regenerates `reports` but leaves `assessments`
+  byte-identical, and `heldout_scores.world` pairs each run's "after" with the baseline from the same world.
+- **Geo and vector search are native.** `$geoNear` on the 2d `loc` indexes is how the harness finds neighbor
+  reports; `$vectorSearch` on `memory_vec` (1,024 dimensions, cosine, filtered by run and kind) is the curator's
+  notebook.
 
 ## The harness loop
 
@@ -166,16 +316,8 @@ baseline 59.5% dev / 50.3% validation; builder reference 69.7% / 69.7%; dev fals
 
 ### MongoDB (`jevly` database)
 
-| Collection | Contents | Read by | Written by |
-|---|---|---|---|
-| `blocks` | town, x, y, `loc` (2d index), land use, elevation | dashboard | admin (loader) |
-| `reports` | town, source, x, y, `loc` (2d index), value, text, hour | curator, dashboard | admin |
-| `assessments` | **the answer key**: town, x, y, state | **scorer only** | admin |
-| `policies` | lineage: gen, parent, status, ops, compiled_pipeline, hypothesis, prediction, dev_score, gate | curator, dashboard | curator |
-| `runs` | time-series, one row per block per generation: pick, confidence, probabilities, the exact lines Jev saw, graded truth | scorer, dashboard | scorer |
-| `gate_scores` | validation score per generation, plus refs (baseline, ceiling). Kept away from the curator | scorer, dashboard | scorer |
-| `heldout_scores` | once-only scores for tonight and the other cities | scorer, dashboard | scorer |
-| `memory` | findings and rejected ideas, with a vector index | curator, dashboard | curator |
+See [Data model](#data-model): the entity-relationship diagram, the lifecycle, and every collection with its
+keys, indexes, logins and size.
 
 ### Files
 
