@@ -37,6 +37,7 @@ cat <<'BOOT'
   var q = new URLSearchParams(location.search), stage = document.getElementById('stage');
   if (q.get('scenario')) { window.__sightlineApp(); return; }
   stage.innerHTML = '<div style="padding:48px;font:15px IBM Plex Sans, sans-serif;color:#555">Loading the recorded run from MongoDB…</div>';
+  if (q.get('snapshot')) window.SIGHTLINE_FORCE_SNAPSHOT = true;
   SightlineLive.load(q.get('api') || '', q.get('run') || '').then(function () {
     stage.innerHTML = ''; window.__sightlineApp();
   }).catch(function (e) {

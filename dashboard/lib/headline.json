@@ -1,0 +1,46 @@
+{
+  "run": "live-1",
+  "night": {
+    "gen0": {
+      "acc": 0.6765536723163842,
+      "crit": 35,
+      "critTotal": 57,
+      "wrongCrews": 119
+    },
+    "evolved": {
+      "acc": 0.7146892655367232,
+      "crit": 37,
+      "critTotal": 57,
+      "wrongCrews": 59
+    }
+  },
+  "recorded": "2026-09-26T19:53:26.601Z",
+  "generations": 13,
+  "kept": 2,
+  "rejected": 9,
+  "notScored": 2,
+  "val": {
+    "from": 0.6458580176572891,
+    "to": 0.7210980688824079,
+    "ceiling": 0.7655660647677612
+  },
+  "dev": {
+    "from": 0.5674753108676109,
+    "to": 0.6108283311777227,
+    "ceiling": 0.7154391206347018
+  },
+  "nightName": "NYC0",
+  "rules": [
+    {
+      "gen": 1,
+      "text": "Ignore social-post reports."
+    },
+    {
+      "gen": 3,
+      "text": "Summarize reports from blocks within 2 blocks."
+    }
+  ],
+  "probe": "not authorized on jevly to find on assessments",
+  "heldout": [],
+  "curatorCost": 0.18209290160000002
+}

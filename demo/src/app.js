@@ -119,7 +119,7 @@
     useEffect(function () {  // live mode: fetch exactly what Jev saw for this block
       if (!D.blockUrl || props.gen == null) return;
       setLive(null);
-      fetch(D.blockUrl(props.gen, c, r)).then(function (x) { return x.json(); }).then(setLive).catch(function () {});
+      (D.getBlock ? D.getBlock(props.gen, c, r) : fetch(D.blockUrl(props.gen, c, r)).then(function (x) { return x.json(); })).then(setLive).catch(function () {});
     }, [i, props.gen]);
     if (D.blockUrl && props.gen != null) {
       var recs = live && live.lines ? live.lines.slice(2) : [];

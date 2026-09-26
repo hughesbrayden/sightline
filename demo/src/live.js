@@ -26,11 +26,28 @@
     'city-survey': 'Survey', 'fire-dept': 'Fire dept.' };
   var SEVERE_TAGS = { '#collapse': 1, '#fire': 1, '#flooding': 1 };
 
-  function api(base, path) {
-    return fetch(base + path).then(function (r) {
-      if (!r.ok && r.status !== 404) throw new Error(path + ': HTTP ' + r.status);
-      return r.json();
+  // Every request goes through here. If the live API is unreachable (cluster paused, credentials rotated),
+  // fall back to the snapshot of the recorded run that ships next to the page, so the demo always works.
+  var snapshot = null, usedSnapshot = false;
+  function fromSnapshot(path) {
+    snapshot = snapshot || fetch('/snapshot.json').then(function (r) { if (!r.ok) throw new Error('no snapshot'); return r.json(); });
+    return snapshot.then(function (snap) {
+      var key = path;
+      if (!(key in snap) && key.indexOf('/api/state') === 0) {  // no run named: the snapshot's recorded run
+        key = Object.keys(snap).filter(function (k) { return k.indexOf('/api/state') === 0; })[0];
+      }
+      if (!(key in snap)) throw new Error(path + ' is not in the snapshot');
+      usedSnapshot = true;
+      return snap[key];
     });
+  }
+  function api(base, path) {
+    var live = window.SIGHTLINE_FORCE_SNAPSHOT ? Promise.reject(new Error('forced'))
+      : fetch(base + path).then(function (r) {
+        if (!r.ok && r.status !== 404) throw new Error(path + ': HTTP ' + r.status);
+        return r.json();
+      });
+    return live.catch(function (e) { return fromSnapshot(path).catch(function () { throw e; }); });
   }
 
   // A map response -> row-major arrays the DamageMap understands.
@@ -257,6 +274,8 @@
             D.flow = function () { return F; };
             D.nice = function (st) { return NICE[st] || st; };
             D.blockUrl = function (gen, x, y) { return base + '/api/block?run=' + run + '&gen=' + gen + '&town=' + night + '&x=' + x + '&y=' + y; };
+            D.getBlock = function (gen, x, y) { return api(base, '/api/block?run=' + run + '&gen=' + gen + '&town=' + night + '&x=' + x + '&y=' + y); };
+            D.usedSnapshot = function () { return usedSnapshot; };
             return F;
           });
         });
