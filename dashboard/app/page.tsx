@@ -150,17 +150,59 @@ export default function Page() {
         <section id="architecture" style={{ marginTop: 44 }}>
           <h2 style={h2}>How it works</h2>
           <p style={{ color: c.muted, fontSize: 15, lineHeight: 1.5, margin: "0 0 14px", maxWidth: 820 }}>
-            Every arrow runs under one of three locked MongoDB logins. The answer key (red) is reachable only by the scorer;
-            the curator sees scores and 30 traces from past storms and a pass/fail from the gate, never the validation number.
+            Four parts, three locked database logins. The answer key is readable only by the scorer; the curator&apos;s
+            login is refused (the tripwire probe shows it live).
           </p>
           <a href="/arch-system.png" style={{ display: "block", ...card, padding: 12, overflowX: "auto" }}>
-            <img src="/arch-system.png" alt="System architecture: storm world, MongoDB Atlas with locked logins, the harness loop, and the Vercel dashboard" style={{ width: "100%", minWidth: 720, display: "block" }} />
+            <img src="/arch-system.png" alt="System: the storm world loads MongoDB Atlas; the harness loop reads reports with the curator login and the answer key with the scorer login only; the dashboard reads with a read-only login; the curator's attempt to read answers is denied" style={{ width: "100%", minWidth: 640, display: "block" }} />
           </a>
-          <div style={{ fontFamily: display, fontSize: 20, fontWeight: 600, margin: "26px 0 8px" }}>One generation, step by step</div>
-          <a href="/arch-generation.png" style={{ display: "block", ...card, padding: 12, overflowX: "auto" }}>
-            <img src="/arch-generation.png" alt="Sequence of one generation: prompt, leak check, curator, validation, 3,111 Jev calls, scorer, gate, lineage" style={{ width: "100%", minWidth: 720, display: "block" }} />
+
+          <div style={{ fontFamily: display, fontSize: 20, fontWeight: 600, margin: "28px 0 6px" }}>The harness loop</div>
+          <p style={{ color: c.muted, fontSize: 15, lineHeight: 1.5, margin: "0 0 14px", maxWidth: 820 }}>
+            The standard self-evolving pattern (execute → trace → propose → gate → keep, with lineage), hardened against
+            the failure modes that pattern is known for: overfitting to the storms it tunes on, noisy feedback, bloat, and a
+            curator with no memory.
+          </p>
+          <a href="/arch-loop.png" style={{ display: "block", ...card, padding: 12, overflowX: "auto" }}>
+            <img src="/arch-loop.png" alt="Harness loop: curator proposes one change with a numeric prediction; a screen on about 600 dev blocks rejects clearly worse ideas; Jev maps dev and two validation storms; a gate keeps the change only if P(better) is at least 0.9 with guardrails; every outcome becomes a lesson in the Atlas notebook, retrieved by vector search for the next proposal" style={{ width: "100%", minWidth: 640, display: "block" }} />
           </a>
-          <p style={{ fontSize: 13, color: c.muted, marginTop: 8 }}>Click a diagram for full size.</p>
+          <div style={{ ...card, marginTop: 14, overflowX: "auto" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14, lineHeight: 1.5, minWidth: 640 }}>
+              <thead>
+                <tr>{["Weakness of a simple loop", "What the robust loop does"].map((t) => (
+                  <th key={t} style={{ textAlign: "left", padding: "12px 16px", borderBottom: `1px solid ${c.line}`, fontSize: 13, color: c.muted, fontWeight: 600 }}>{t}</th>
+                ))}</tr>
+              </thead>
+              <tbody>
+                {[
+                  ["The gate is noise: a 1-point margin on one validation storm, when one block flip can move balanced accuracy about 2 points.",
+                   "A paired, stratified bootstrap on two validation storms (NYC0 + HOU0): keep only if P(better) ≥ 0.9."],
+                  ["One number decides everything.",
+                   "Guardrails: dev may not drop more than 1 point, and expected harm (5 × missed life-safety blocks + false dispatches) may not rise more than 5%."],
+                  ["The curator only hears \"fail\".",
+                   "A diff digest: which blocks the change fixed and broke, with before/after traces. Predictions are numeric and scored."],
+                  ["No memory between stateless curator calls.",
+                   "A vector lab notebook: every generation writes a lesson to Atlas memory; the prompt retrieves the most relevant ones with $vectorSearch, and repeats of rejected ideas are skipped."],
+                  ["Every idea costs a full evaluation.",
+                   "A screen on a stratified dev sample rejects clearly bad ideas at a fraction of the calls."],
+                  ["Accepted rules pile up.",
+                   "A prune pass removes each rule in turn and keeps only those that measurably help: the survivors are \"what it learned\"."],
+                ].map(([w, fix], i) => (
+                  <tr key={i} style={{ borderTop: i ? `1px solid ${c.line}` : "none" }}>
+                    <td style={{ padding: "12px 16px", verticalAlign: "top", width: "40%" }}>{w}</td>
+                    <td style={{ padding: "12px 16px", verticalAlign: "top" }}>{fix}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <p style={{ fontSize: 13, color: c.muted, marginTop: 10, lineHeight: 1.5 }}>
+            The recorded run <span style={{ fontFamily: mono }}>live-1</span> ran on the simple loop (one validation storm, a
+            1-point margin). The robust loop runs in the harness lab and was proven in the comparison in{" "}
+            <a href={`${REPO}/blob/main/DEMO.md#robust-loop-vs-naive-loop-vs-random`} style={{ color: c.accent }}>DEMO.md</a>;
+            porting it into the live driver is the next step. Every live generation is also traced in LangSmith. Click a
+            diagram for full size.
+          </p>
         </section>
 
         <section style={{ marginTop: 32, fontSize: 14, lineHeight: 1.6 }}>
