@@ -175,7 +175,8 @@
     if (step === 2) {
       var n = Math.min(F.pins.length, 3 + tick * 2), frac = n / F.pins.length;
       var grow = function (v) { return Math.round(v * frac).toLocaleString('en-US'); };
-      var feed = F.feed.slice(0, Math.min(F.feed.length, 1 + Math.floor(tick / 6)));
+      var feedN = Math.min(F.feed.length, 1 + Math.floor(tick / 6)), feedStart = Math.max(0, feedN - 6);
+      var feed = F.feed.slice(feedStart, feedN);  // a rolling window: the newest six, oldest drop off the top
       map = { cells: F.calm, caption: 'Incoming reports', meta: n + ' on the map', pins: F.pins.slice(0, n) };
       panel = html`
         <div className="intro"><h2>Reports are flooding in</h2><p className="muted lead">${grow(F.counts.total || 10164)} reports so far. Some of them are wrong.</p></div>
@@ -183,7 +184,7 @@
           return html`<div className="stat" key=${c[0]}><span className="muted small row gap6"><span style=${pinStyle(c[1])}></span>${c[0]}</span><span className="mono num md">${grow(c[2])}</span></div>`;
         })}</div>
         <div className="feed">${feed.map(function (f, k) {
-          return html`<div className="feedrow" key=${k}><span className="mono muted xs">${f.time}</span><span className="xs strong muted">${f.src}</span><span>${f.text}</span>${f.odd ? html`<span className="flag">Looks off</span>` : html`<span></span>`}</div>`;
+          return html`<div className="feedrow" key=${feedStart + k}><span className="mono muted xs">${f.time}</span><span className="xs strong muted">${f.src}</span><span>${f.text}</span>${f.odd ? html`<span className="flag">Looks off</span>` : html`<span></span>`}</div>`;
         })}</div>`;
     }
     if (step === 3) {
@@ -385,18 +386,19 @@
         <div className="row between"><span className="tag tag-train"><span className="pill-dot"></span>${F.live ? 'Evolution · backtest on past storms (Miami shown)' : 'Evolution · Storm 1, October · assessed'}</span><span className="mono small">Generation ${runs[cur].run - 1} of ${LAST}</span></div>
         <${S.DamageMap} cells=${runs[shown].cells} confidence=${runs[shown].conf} cellSize=${15} label="Past storm map at the current generation" />
         <div className="row between"><span className="muted small">${F.live ? 'Selection: validation storm balanced accuracy (the gate)' : "Fitness: scored against Storm 1's official assessment"}</span><span className="mono num md" style=${{ color: 'var(--series-heldout)' }}>${pct(runs[shown].acc)}</span></div>
-        <${HillCurve} runs=${runs} cur=${cur} width=${513} height=${176} trainLabel=${F.live ? 'Lineage, validation (kept changes)' : 'Lineage so far on Storm 1'} label="Score by generation" />
       </div>
       <div className="col gap12 grow">
         <strong className="small">Generations: what the harness is trying</strong>
         <div className="col">${runs.map(function (r, i) {
-          if (F.live && (i < cur - 5 || i > cur + 1)) return null;  // live: a window of seven around the current generation
+          var winHi = Math.min(runs.length - 1, cur + 1), winLo = Math.max(0, winHi - 4);
+          if (i < winLo || i > winHi) return null;  // always five rows, ending just after the current generation
           var done = i <= cur;
           var result = !done ? 'queued' : r.status === 'accepted' ? (r.run === 1 ? 'generation 0' : 'kept') : r.status === 'rejected' ? 'rejected by the gate' : (F.live ? 'not scored' : 'skipped by memory');
           var color = !done ? 'var(--ink-muted)' : r.status === 'accepted' ? 'var(--good)' : r.status === 'rejected' ? 'var(--critical)' : 'var(--ink-muted)';
-          return html`<div className=${'logrow' + (i === cur ? ' current' : '')} style=${{ opacity: done ? 1 : 0.45 }} key=${i}><span className="mono muted xs">Gen ${r.run - 1}</span><span className="xs">${F.live && r.hyp.length > 105 ? r.hyp.slice(0, 102) + '…' : r.hyp}</span><span className="xs strong" style=${{ color: color }}>${result}</span></div>`;
+          return html`<div className=${'logrow' + (i === cur ? ' current' : '')} style=${{ opacity: done ? 1 : 0.45 }} key=${i}><span className="mono muted xs">Gen ${r.run - 1}</span><span className="xs">${F.live && r.hyp.length > 95 ? r.hyp.slice(0, 92) + '…' : r.hyp}</span><span className="xs strong" style=${{ color: color }}>${result}</span></div>`;
         })}</div>
         ${props.next}
+        <div style=${{ marginTop: 'auto' }}><${HillCurve} runs=${runs} cur=${cur} width=${389} height=${176} trainLabel=${F.live ? 'Lineage, validation (kept)' : 'Lineage so far on Storm 1'} label="Score by generation" /></div>
       </div>
     </div>`;
   }

@@ -108,7 +108,7 @@ import pathlib
 src = pathlib.Path("demo/sightline-demo.html").read_text()
 banner = ('<div style="position:fixed;top:0;left:0;right:0;z-index:9999;background:#a44a14;color:#fff;'
           'font:13px IBM Plex Sans,sans-serif;padding:6px 12px;text-align:center">Illustrative walkthrough with example data. '
-          'The recorded run is at <a href="/story.html" style="color:#fff;font-weight:600">/sightline.html</a>.</div>')
+          'The recorded run is at <a href="/story.html" style="color:#fff;font-weight:600">/story.html</a>.</div>')
 pathlib.Path("dashboard/public/story-example.html").write_text(src.replace('<div id="frame">', banner + '<div id="frame">', 1))
 PYEOF
 }

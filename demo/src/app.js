@@ -214,7 +214,8 @@
     if (phase === 'reports') {
       var n = Math.min(F.pins.length, 3 + tick * 2), frac = n / F.pins.length;
       var grow = function (v) { return Math.round(v * frac).toLocaleString('en-US'); };
-      var feed = F.feed.slice(0, Math.min(F.feed.length, 1 + Math.floor(tick / 6)));
+      var feedN = Math.min(F.feed.length, 1 + Math.floor(tick / 6)), feedStart = Math.max(0, feedN - 6);
+      var feed = F.feed.slice(feedStart, feedN);  // a rolling window: the newest six, oldest drop off the top
       map = { cells: F.calm, caption: 'Incoming reports', meta: n + ' on the map', pins: F.pins.slice(0, n) };
       panel = html`
         <div className="intro"><h2>The storm hits. Reports flood in.</h2><p className="muted lead">${grow(F.counts.total || 10164)} reports so far from ${F.sources || 'five kinds of sources'}. Some of them are wrong.</p></div>
@@ -222,7 +223,7 @@
           return html`<div className="stat" key=${c[0]}><span className="muted small row gap6"><span style=${pinStyle(c[1])}></span>${c[0]}</span><span className="mono num md">${grow(c[2])}</span></div>`;
         })}</div>
         <div className="feed">${feed.map(function (f, k) {
-          return html`<div className="feedrow" key=${k}><span className="mono muted xs">${f.time}</span><span className="xs strong muted">${f.src}</span><span>${f.text}</span>${f.odd ? html`<span className="flag">Looks off</span>` : html`<span></span>`}</div>`;
+          return html`<div className="feedrow" key=${feedStart + k}><span className="mono muted xs">${f.time}</span><span className="xs strong muted">${f.src}</span><span>${f.text}</span>${f.odd ? html`<span className="flag">Looks off</span>` : html`<span></span>`}</div>`;
         })}</div>`;
       cta = html`<${Cta} label="Run generation 0" onClick=${props.onNext} />`;
     } else {
