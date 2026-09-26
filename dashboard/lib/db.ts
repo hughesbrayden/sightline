@@ -26,5 +26,6 @@ export async function resolveRun(d: Db, run: string | null): Promise<string | nu
 }
 
 export function json(data: unknown, status = 200) {
-  return Response.json(data, { status, headers: { "Cache-Control": "no-store" } });
+  // Read-only, no secrets: any origin (e.g. a v0 preview) may call it.
+  return Response.json(data, { status, headers: { "Cache-Control": "no-store", "Access-Control-Allow-Origin": "*" } });
 }

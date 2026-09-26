@@ -135,6 +135,17 @@ def main():
     blob = "".join(p.read_text(errors="ignore") for p in static.rglob("*.js")) if static.exists() else ""
     check("security", "no Mongo URI / env name in browser bundle",
           static.exists() and "mongodb+srv" not in blob and "MONGODB_URI" not in blob, f"{len(blob) // 1024} KB of client JS scanned")
+    cors = []
+    for path in (f"/api/state?run={RUN}", f"/api/map?run={RUN}&gen=0&town=MIA1", "/api/reports?town=NYC1&until_hour=0",
+                 f"/api/block?run={RUN}&gen=0&town=MIA1", f"/api/block?run={RUN}&gen=0&town=MIA1&x=31&y=31"):
+        req = urllib.request.Request(BASE + path, headers={"Origin": "https://v0.app"})
+        try:
+            with urllib.request.urlopen(req, timeout=30, context=CTX) as r:
+                cors.append(r.headers.get("Access-Control-Allow-Origin"))
+        except urllib.error.HTTPError as e:  # error responses need the header too, or the browser hides them
+            cors.append(e.headers.get("Access-Control-Allow-Origin"))
+    check("browser", "CORS: v0 preview may call every endpoint (incl. 400/404)", all(c == "*" for c in cors),
+          f"{cors.count('*')}/{len(cors)} responses allow any origin")
     lat = []
     for _ in range(10):
         lat.append(get(f"/api/state?run={RUN}")[3])
