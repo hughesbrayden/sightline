@@ -2,6 +2,9 @@
 
   python puzzle_draft/driver.py --gens 8                 real Jev, curator via OpenRouter (CURATOR_MODEL)
   python puzzle_draft/driver.py --gens 3 --backend fake  plumbing only (the fake ignores glosses)
+  python puzzle_draft/driver.py --curator inbox --inbox DIR --run R [--resume]
+      step mode for an external curator (e.g. a Claude subagent): writes DIR/gNN_prompt.md and exits with code 3;
+      the curator writes DIR/gNN_reply.json (the genome); rerun with --resume to score it and write the next prompt
 
 Blindness: the curator prompt holds only the brief, its own past genomes with dev scores and gate pass/fail,
 and the latest dev digest (scores + 30 traces). Every prompt is leak-checked before it is sent. Validation
@@ -96,6 +99,25 @@ def curator_step(prompt: str, model: str, key: str) -> tuple[dict, dict]:
                                     "seconds": round(time.perf_counter() - start, 1)}
 
 
+WAITING = 3  # exit code: an inbox prompt is waiting for the external curator
+
+
+def inbox_step(inbox: Path, gen: int, prompt: str) -> tuple[dict, dict]:
+    """External curator: use gNN_reply.json if it exists; otherwise write gNN_prompt.md and stop the run."""
+    reply = inbox / f"g{gen:02d}_reply.json"
+    if reply.exists():
+        text = reply.read_text(encoding="utf-8-sig")
+        m = re.search(r"\{.*\}", text, re.S)
+        if not m:
+            raise GenomeError(f"no JSON object in {reply.name}")
+        return json.loads(m.group(0)), {"model": "inbox", "reply_file": reply.name}
+    inbox.mkdir(parents=True, exist_ok=True)
+    (inbox / f"g{gen:02d}_prompt.md").write_text(prompt, encoding="utf-8")
+    print(f"  gen {gen}  waiting for the curator: wrote {inbox / f'g{gen:02d}_prompt.md'}; "
+          f"put the genome in {reply.name} and rerun with --resume")
+    sys.exit(WAITING)
+
+
 class Lineage:
     """Mongo writes, each through the login allowed to make it. Falls back to local JSON if Mongo is down."""
 
@@ -146,10 +168,18 @@ def main() -> None:
     parser.add_argument("--no-mongo", action="store_true", help="keep lineage local only")
     parser.add_argument("--seed", help="start from this genome instead of the baseline (e.g. a previous run's best)")
     parser.add_argument("--resume", action="store_true", help="continue --run from its local lineage (adds --gens more)")
+    parser.add_argument("--curator", choices=["openrouter", "inbox"], default="openrouter",
+                        help="inbox: an external curator answers prompt files (step mode, see the docstring)")
+    parser.add_argument("--inbox", type=Path, help="with --curator inbox: folder for gNN_prompt.md / gNN_reply.json")
     args = parser.parse_args()
     load_env()
-    key = os.environ.get("OPENROUTER_API_KEY") or sys.exit("OPENROUTER_API_KEY missing")
-    model = os.environ.get("CURATOR_MODEL") or DEFAULT_MODEL
+    if args.curator == "inbox":
+        if not args.inbox:
+            sys.exit("--curator inbox needs --inbox DIR (keep it outside the repo so the curator stays blind)")
+        key, model = None, "inbox"
+    else:
+        key = os.environ.get("OPENROUTER_API_KEY") or sys.exit("OPENROUTER_API_KEY missing")
+        model = os.environ.get("CURATOR_MODEL") or DEFAULT_MODEL
     run = args.run or now().strftime("run-%m%d-%H%M")
     backend = get_backend(args.backend)
     lineage = Lineage(run, enabled=not args.no_mongo)
@@ -197,13 +227,20 @@ def main() -> None:
         genome, usage, error = None, {}, None
         for attempt in range(4):
             try:
-                genome, usage = curator_step(prompt if not error else
-                                             f"{prompt}\n\nYour last reply was invalid: {error}. Fix it.", model, key)
+                if args.curator == "inbox":
+                    genome, usage = inbox_step(args.inbox, gen, prompt)
+                else:
+                    genome, usage = curator_step(prompt if not error else
+                                                 f"{prompt}\n\nYour last reply was invalid: {error}. Fix it.", model, key)
                 genome["id"] = f"{run}_g{gen:02d}"
                 validate(genome)
                 break
             except (GenomeError, json.JSONDecodeError, httpx.HTTPError, KeyError) as e:
                 error, genome = str(e)[:300], None
+                if args.curator == "inbox":  # hand the error back to the curator with the same prompt
+                    bad = args.inbox / f"g{gen:02d}_reply.json"
+                    bad.replace(bad.with_name(f"g{gen:02d}_reply_invalid_{attempt}.json"))
+                    inbox_step(args.inbox, gen, f"{prompt}\n\nYour last reply was invalid: {error}. Fix it.")
         if genome is None:
             history.append({"gen": gen, "status": "invalid", "genome": {"ops": []}, "gate": None})
             lineage.policy({"gen": gen, "parent": parent, "status": "invalid", "error": error, "curator": usage})

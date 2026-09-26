@@ -127,16 +127,18 @@
   // Why generation 0 got a block wrong, read from the exact lines it saw: quote the line that points at Jev's
   // (wrong) answer, and name the habit behind it.
   var POINTS_TO = {
-    flooded_homes: /WATER-RESCUE|water above door|#flooding|Category B|second floor|living room/i,
-    flooded_street: /FLOODED-ROADWAY|water in street|Street Flooding|#flooding|Category D/i,
-    collapsed: /COLLAPSE|structure down|#collapse|Category A|Destroyed|came down|flattened/i,
-    fire: /FIRE\b|smoke|flames|#fire|burn|Major/i,
-    roof_damage: /STRUCTURE-DAMAGE|roof|Category C|Building Damage|shingles/i,
-    power_out: /UTILITY-OUTAGE|de-energized|Power Outage|#poweroutage|no power/i,
-    downed_lines: /WIRES-DOWN|Downed Wire|line fault|leaning poles|#powerlines/i,
-    road_blocked: /ROAD-OBSTRUCTION|Blocked Road|debris across|#roadclosed|Minor/i,
-    hospital_down: /MEDICAL-FACILITY|hospital lot flooded|turning ambulances/i,
-    intact: /WELFARE-CHECK|no visible damage|#safe|Category E|energized/i
+    // report vocabularies follow their real-world counterparts: CAD call types, NYC 311, FEMA PDA levels,
+    // NFIRS incident types, PLUTO land use, RescueNet / FloodNet image labels
+    flooded_homes: /WATER RESCUE|Building-Flooded|#flooding|damage level Major|Sewer Backup|incident type 363|second floor|living room/i,
+    flooded_street: /FLOODED ROADWAY|Road-Flooded|Street Flooding|#flooding|damage level Affected/i,
+    collapsed: /BUILDING COLLAPSE|Total-Destruction|#collapse|damage level Destroyed|incident type 461|Structural Stability|came down|flattened/i,
+    fire: /FIRE:|smoke|flames|#fire|burn|incident type 111|Major-Damage/i,
+    roof_damage: /ASSIST CIVILIAN - NON-MEDICAL|roof|damage level Minor|Minor-Damage|Debris - Falling|shingles/i,
+    power_out: /UTILITY EMERGENCY - ELECTRIC|de-energized|Street Light Out|#poweroutage|no power/i,
+    downed_lines: /UTILITY EMERGENCY - ELECTRIC|line fault|incident type 444|Tree, Road-Clear|#powerlines/i,
+    road_blocked: /TREE DOWN|Tree Has Fallen|Road-Blocked|#roadclosed|incident type 813/i,
+    hospital_down: /MEDICAL - ASSIST CIVILIAN|hospital|turning ambulances/i,
+    intact: /UNDEFINED EMERGENCY|Building-No-Damage|#safe|damage level Affected|energized|HEATING|Loud Music/i
   };
   function misreadTitle(lines, x, y, pick) {
     var recs = (lines || []).slice(2).map(function (l) { return l.replace(/^- /, ''); });
@@ -145,8 +147,9 @@
     var find = function (test) { return hits.filter(test)[0]; };
     var h;
     if ((h = find(function (l) { return /^\[social-post\].*verified: yes/.test(l); }))) return ['A "verified" rumor taken literally', h];
-    if ((h = find(function (l) { return /^\[city-survey\].*Category [A-E]$/.test(l) && l.indexOf(own) >= 0; }))) return ['A damage scale read at face value', h];
-    if ((h = find(function (l) { return /^\[fire-dept\].*severity (Minor|Major|Destroyed)$/.test(l) && l.indexOf(own) >= 0; }))) return ["A second agency's scale read at face value", h];
+    if ((h = find(function (l) { return /^\[city-survey\].*damage level (Destroyed|Major|Minor|Affected|Inaccessible)$/.test(l) && l.indexOf(own) >= 0; }))) return ["FEMA's damage scale read at face value", h];
+    if ((h = find(function (l) { return /^\[fire-dept\].*incident type \d+$/.test(l) && l.indexOf(own) >= 0; }))) return ["A fire-department incident code read at face value", h];
+    if ((h = find(function (l) { return /^\[311\].*(HEATING|Noise - Residential)/.test(l); }))) return ['A routine 311 request read as storm damage', h];
     if ((h = find(function (l) { return /^\[911-call\]/.test(l) && l.indexOf(own) < 0; }))) return ["A neighbor's 911 call taken as this block's", h];
     if ((h = find(function (l) { return /^\[utility-feed\].*de-energized/.test(l); }))) return ['A feeder-wide outage read as the whole story', h];
     if ((h = find(function (l) { return /^\[[^\]]+\] Block/.test(l) && l.indexOf(own) < 0; }))) return ["A neighbor's report taken as this block's", h];

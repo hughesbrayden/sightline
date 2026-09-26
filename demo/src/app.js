@@ -97,11 +97,11 @@
   }
 
   var REP = {
-    home: [['911 call', 'Water coming in on the ground floor.'], ['Drone pass', 'Water up to first-floor windows.'], ['Fire dept.', 'Level 3, which on that scale means homes flooded.']],
-    street: [['311 report', 'Street flooded, cars stuck.'], ['Drone pass', 'Water over the curb, doors dry.']],
-    wind: [['311 report', 'Part of the roof is gone.'], ['Social post', 'Photo of siding torn off.']],
-    major: [['911 call', 'A wall came down.'], ['City survey', 'Category D: major damage.']],
-    destroyed: [['Drone pass', 'Structure gone; debris only.'], ['City survey', 'Category E: destroyed.']],
+    home: [['911 call', 'WATER RESCUE: PERSONS TRAPPED. "Water is up to the outlets."'], ['Drone pass', 'Building-Flooded.'], ['Fire dept.', 'NFIRS 363: swift water rescue.']],
+    street: [['311 report', 'Sewer / Street Flooding (SJ).'], ['Drone pass', 'Road-Flooded, Building-Non-Flooded.']],
+    wind: [['311 report', 'Debris - Falling Or In Danger Of Falling.'], ['Social post', 'Photo of siding torn off.']],
+    major: [['911 call', 'A wall came down.'], ['FEMA survey', 'Damage level Major.']],
+    destroyed: [['Drone pass', 'Building-Total-Destruction.'], ['FEMA survey', 'Damage level Destroyed.']],
     fire: [['911 call', 'Smoke and flames from a basement.'], ['Drone pass', 'Active fire, flooded street.']],
     road: [['311 report', 'Tree down across the road.'], ['Drone pass', 'Debris blocking both lanes.']],
     power: [['Utility feed', 'Outage reported on this block.'], ['311 report', 'No power since 23:00.']],

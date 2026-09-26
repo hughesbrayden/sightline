@@ -1,30 +1,37 @@
-{
-  "id": "ref_full_v2",
-  "rationale": {"hypothesis": "Builder ceiling: fixes every planted habit with harness ops.", "refuted_if": "n/a"},
+﻿{
+  "id": "ref_full_v3c",
+  "rationale": {"hypothesis": "Builder ceiling: fixes every planted habit with harness ops (real-world vocabularies).", "refuted_if": "n/a"},
   "prediction": "ceiling",
   "ops": [
     {"op": "exclude_source", "source": "social-post"},
     {"op": "gloss_value", "source": "city-survey", "map": {
-      "Category A": "worst: building destroyed or collapsed", "Category B": "major: water inside homes",
-      "Category C": "minor: roof damage, structure sound", "Category D": "affected: water on streets only, homes dry",
-      "Category E": "inspected, no damage"}},
+      "Destroyed": "building destroyed or collapsed", "Major": "water inside homes",
+      "Minor": "roof damage, structure sound", "Affected": "cosmetic only: often no real damage; at most water in the streets, homes dry",
+      "Inaccessible": "surveyors could not reach the block, usually because of water"}},
     {"op": "gloss_value", "source": "fire-dept", "map": {
-      "Minor": "downed power lines or road blocked", "Major": "active fire", "Destroyed": "building collapsed"}},
+      "111": "building fire", "461": "building collapsed", "444": "power line down",
+      "813": "hurricane wind damage call: road blocked by debris", "363": "swift water rescue: water inside homes"}},
     {"op": "gloss_value", "source": "utility-feed", "map": {
       "de-energized": "power is out on this feeder; if no record shows worse damage, the block is power_out"}},
     {"op": "gloss_value", "source": "pre-storm-map", "map": {
-      "public school (designated shelter), mid ground": "shelters on dry ground open after a storm",
-      "public school (designated shelter), high ground": "shelters on dry ground open after a storm",
-      "hospital, mid ground": "hospital; operating unless records show flooding or outage",
-      "hospital, high ground": "hospital; operating unless records show flooding or outage",
-      "hospital, low ground": "hospital; check records for flooding"}},
+      "08 Public Facilities & Institutions (school, designated evacuation center)": "school designated as an evacuation center; not every one opens",
+      "08 Public Facilities & Institutions (hospital)": "hospital; check the other records for flooding or outage"}},
     {"op": "gloss_value", "source": "911-call", "map": {
-      "WATER-RESCUE": "caller location is approximate, may be the next block",
-      "STRUCTURE-COLLAPSE": "caller location is approximate, may be the next block",
-      "FIRE": "caller location is approximate, may be the next block"}},
+      "WATER RESCUE: PERSONS TRAPPED": "water inside homes; caller location is approximate, may be the next block",
+      "STRUCTURAL: BUILDING COLLAPSE": "caller location is approximate, may be the next block",
+      "FIRE: RESIDENCE PRIVATE HOUSE": "caller location is approximate, may be the next block",
+      "UTILITY EMERGENCY - ELECTRIC": "wires down or power out",
+      "ASSIST CIVILIAN - NON-MEDICAL": "non-emergency help, often roof damage"}},
+    {"op": "gloss_value", "source": "drone-pass", "map": {"Building-No-Damage, Vehicle": "buses and crowds outside: a shelter is operating", "Building-Flooded": "water around and inside the building"}},
+    {"op": "gloss_value", "source": "311", "map": {
+      "HEATING / HEAT": "routine request, not storm damage",
+      "Noise - Residential / Loud Music/Party": "routine request, not storm damage"}},
     {"op": "include_own", "k": 8},
+    {"op": "include_related", "radius": 1, "show": "raw", "sources": ["drone-pass", "911-call"], "k": 2},
     {"op": "include_related", "radius": 1, "show": "profile", "sources": ["drone-pass", "city-survey"],
-     "only_values": ["water in street below doorsteps", "water above door level", "Category B", "Category D"]}
+     "only_values": ["Road-Flooded, Building-Non-Flooded", "Building-Flooded", "Major", "Affected"]}
   ],
   "format": "relative"
 }
+
+

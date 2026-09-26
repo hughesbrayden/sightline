@@ -9,15 +9,20 @@ Six hours after landfall, every land block has one true state. Rules are seeded 
   fire        a few ignitions next to downed lines
   facilities  2x2 campuses: shelters and one hospital on high ground, one hospital down in a hazard zone
 
-Each source reports in its own vocabulary and has one planted habit the curator can only fix with ops:
-  911-call           location often off by one block (the call is about a neighbor)
-  social-post        a few viral "verified: yes" accounts spread false collapse / fire / flood reports
-  city-survey        letter scale A-E where A is the *worst* (destroyed)
-  311                low-severity citizen reports; accurate, rarely about emergencies
-  fire-dept          Minor / Major / Destroyed (a second agency, a second scale)
-  pre-storm-map      stale prior: land use and elevation only
-  drone-pass         accurate, ~30% coverage in flight strips; power_out looks like no damage
-  utility-feed       accurate but feeder-wide: "de-energized" says nothing about other damage
+Each source speaks a real-world vocabulary (Hurricane Sandy era, NYC) and has a planted habit the curator can
+only fix with ops. The model sees one static post-storm snapshot; `hour` is for the demo feed only.
+  911-call      CAD-style call types (NYPD/FDNY): vague codes shared by several states ("UTILITY EMERGENCY -
+                ELECTRIC", "ASSIST CIVILIAN - NON-MEDICAL"); location often off by one block (FCC Phase II
+                accuracy is 50-150 m); severe incidents draw repeat calls
+  social-post   viral "verified: yes" accounts (paid badges since 2023) spread false collapse / fire / flood reports
+  city-survey   FEMA Preliminary Damage Assessment levels: Destroyed / Major / Minor / Affected / Inaccessible;
+                "Major" means water inside homes, "Affected" means cosmetic only
+  311           real NYC 311 complaint type / descriptor pairs, plus the everyday background (heat, noise)
+  fire-dept     NFIRS incident type codes (111 building fire, 363 swift water rescue, 444 power line down, ...)
+  pre-storm-map stale prior: PLUTO land use, hurricane evacuation zone, FEMA flood zone, elevation; every
+                school is a designated evacuation center, but only some open
+  drone-pass    RescueNet / FloodNet-style image labels, ~30% coverage in flight strips; power_out looks undamaged
+  utility-feed  accurate but feeder-wide: "de-energized" says nothing about other damage
 
 Truth goes to puzzle_draft/secret/storms/<town>/ (and Mongo `assessments`), never to the curator.
 """
@@ -34,6 +39,7 @@ ROOT = Path(__file__).resolve().parent.parent
 STORM_DIR = ROOT / "puzzle_draft" / "storms"
 SECRET_DIR = ROOT / "puzzle_draft" / "secret" / "storms"
 W = H = 32
+WORLD_VERSION = "v3-real-vocab"  # bump when report vocabularies or rules change; once-only held-out scoring is per version
 
 STATES = ["intact", "flooded_street", "flooded_homes", "roof_damage", "collapsed", "fire", "road_blocked",
           "power_out", "downed_lines", "shelter_open", "hospital_ok", "hospital_down"]
@@ -68,44 +74,73 @@ MIN_DEV_COUNT, MIN_TOWN_COUNT = 8, 2  # every state >= 8x across dev towns, >= 2
 SOURCES = ["911-call", "311", "social-post", "city-survey", "fire-dept", "pre-storm-map", "drone-pass", "utility-feed"]
 
 VALUE_OF = {  # source -> true state -> the value that source reports
-    "911-call": {
-        "collapsed": "STRUCTURE-COLLAPSE", "flooded_homes": "WATER-RESCUE", "flooded_street": "FLOODED-ROADWAY",
-        "fire": "FIRE", "downed_lines": "WIRES-DOWN", "road_blocked": "ROAD-OBSTRUCTION",
-        "roof_damage": "STRUCTURE-DAMAGE", "power_out": "UTILITY-OUTAGE", "hospital_down": "MEDICAL-FACILITY",
-        "hospital_ok": "MEDICAL-FACILITY", "shelter_open": "SHELTER-INQUIRY", "intact": "WELFARE-CHECK"},
+    "911-call": {  # CAD call types in the FDNY / NYPD style; several states share one vague code
+        "collapsed": "STRUCTURAL: BUILDING COLLAPSE", "flooded_homes": "WATER RESCUE: PERSONS TRAPPED",
+        "flooded_street": "HAZARD: FLOODED ROADWAY", "fire": "FIRE: RESIDENCE PRIVATE HOUSE",
+        "downed_lines": "UTILITY EMERGENCY - ELECTRIC", "power_out": "UTILITY EMERGENCY - ELECTRIC",
+        "road_blocked": "HAZARD: TREE DOWN", "roof_damage": "ASSIST CIVILIAN - NON-MEDICAL",
+        "shelter_open": "ASSIST CIVILIAN - NON-MEDICAL", "hospital_down": "MEDICAL - ASSIST CIVILIAN",
+        "hospital_ok": "MEDICAL - ASSIST CIVILIAN", "intact": "UNDEFINED EMERGENCY"},
     "social-post": {
         "collapsed": "#collapse", "flooded_homes": "#flooding", "flooded_street": "#flooding", "fire": "#fire",
         "downed_lines": "#powerlines", "road_blocked": "#roadclosed", "roof_damage": "#roofdamage",
         "power_out": "#poweroutage", "hospital_down": "#hospital", "hospital_ok": "#hospital",
         "shelter_open": "#shelter", "intact": "#safe"},
-    "city-survey": {"intact": "Category E", "flooded_street": "Category D", "roof_damage": "Category C",
-                    "flooded_homes": "Category B", "collapsed": "Category A"},
-    "fire-dept": {"downed_lines": "Minor", "road_blocked": "Minor", "fire": "Major", "collapsed": "Destroyed"},
-    "311": {"flooded_street": "Street Flooding", "flooded_homes": "Street Flooding", "road_blocked": "Blocked Road",
-            "power_out": "Power Outage", "downed_lines": "Downed Wire", "roof_damage": "Building Damage",
-            "intact": "Other"},
-    "drone-pass": {
-        "intact": "no visible damage", "power_out": "no visible damage",
-        "flooded_street": "water in street below doorsteps", "flooded_homes": "water above door level",
-        "roof_damage": "roof covering missing", "collapsed": "structure down", "fire": "smoke and burn scar",
-        "road_blocked": "debris across roadway", "downed_lines": "leaning poles",
-        "shelter_open": "buses and crowd at school", "hospital_ok": "hospital lot active",
-        "hospital_down": "hospital lot flooded, no activity"},
+    # FEMA PDA levels. Affected = cosmetic only (streets wet, homes dry); Major = water inside homes
+    "city-survey": {"intact": "Affected", "flooded_street": "Affected", "roof_damage": "Minor",
+                    "flooded_homes": "Major", "collapsed": "Destroyed"},
+    # NFIRS incident types: 111 building fire, 461 building collapsed, 444 power line down,
+    # 813 wind storm / hurricane assessment, 363 swift water rescue
+    "fire-dept": {"fire": "111", "collapsed": "461", "downed_lines": "444", "road_blocked": "813",
+                  "flooded_homes": "363"},
+    "311": {  # NYC 311 complaint type / descriptor (power outages go to Con Ed, not 311)
+        "flooded_street": "Sewer / Street Flooding (SJ)",
+        "flooded_homes": "Sewer / Sewer Backup (Use Comments) (SA)",
+        "road_blocked": "Damaged Tree / Entire Tree Has Fallen Down",
+        "power_out": "Street Light Condition / Street Light Out",
+        "roof_damage": "General Construction/Plumbing / Debris - Falling Or In Danger Of Falling",
+        "collapsed": "General Construction/Plumbing / Building Shaking/Vibrating/Structural Stability"},
+    "drone-pass": {  # RescueNet / FloodNet-style labels: overhead imagery sees roofs and water extent only
+        "intact": "Building-No-Damage", "power_out": "Building-No-Damage",
+        "flooded_street": "Road-Flooded, Building-Non-Flooded", "flooded_homes": "Building-Flooded",
+        "roof_damage": "Building-Minor-Damage", "collapsed": "Building-Total-Destruction",
+        "fire": "Building-Major-Damage", "road_blocked": "Road-Blocked", "downed_lines": "Tree, Road-Clear",
+        "shelter_open": "Building-No-Damage, Vehicle", "hospital_ok": "Building-No-Damage",
+        "hospital_down": "Building-Flooded"},
 }
 COVERAGE = {  # source -> state -> chance a block in that state gets a report
     "911-call": {"collapsed": .45, "flooded_homes": .35, "fire": .6, "hospital_down": .5, "downed_lines": .4,
                  "flooded_street": .2, "road_blocked": .25, "roof_damage": .2, "power_out": .1,
                  "shelter_open": .1, "hospital_ok": .05, "intact": .03},
     "social-post": {**{s: .25 for s in STATES}, "intact": .1, "power_out": .12},
-    "311": {"flooded_street": .35, "flooded_homes": .1, "road_blocked": .4, "power_out": .25, "downed_lines": .3,
-            "roof_damage": .2, "intact": .05},
+    "311": {"flooded_street": .35, "flooded_homes": .15, "road_blocked": .5, "power_out": .2, "roof_damage": .15,
+            "collapsed": .1},
     "city-survey": {"flooded_street": .35, "roof_damage": .35, "flooded_homes": .35, "collapsed": .35,
                     "intact": .1},
-    "fire-dept": {"fire": .85, "collapsed": .5, "downed_lines": .6, "road_blocked": .35},
+    "fire-dept": {"fire": .85, "collapsed": .5, "downed_lines": .6, "road_blocked": .35, "flooded_homes": .25},
 }
-CALLS_311 = {"Street Flooding": "Water across the street, cars can't pass", "Blocked Road": "Tree down across the road",
-             "Power Outage": "No power on my street", "Downed Wire": "Wire hanging low over the sidewalk",
-             "Building Damage": "Siding and gutters torn off", "Other": "Debris in the park"}
+CALLS_311 = {  # the resident's comments on the request
+    "Sewer / Street Flooding (SJ)": "Water across the street, cars can't pass",
+    "Sewer / Sewer Backup (Use Comments) (SA)": "Water coming up through the basement drain",
+    "Damaged Tree / Entire Tree Has Fallen Down": "Tree down across the road",
+    "Street Light Condition / Street Light Out": "Every light on the street is out",
+    "General Construction/Plumbing / Debris - Falling Or In Danger Of Falling": "Pieces of the roof on the sidewalk",
+    "General Construction/Plumbing / Building Shaking/Vibrating/Structural Stability": "Building next door is leaning",
+    "HEATING / HEAT": "No heat in the apartment", "Noise - Residential / Loud Music/Party": "Party next door",
+    "Damaged Tree / Branch Cracked and Will Fall": "Big branch hanging over the sidewalk",
+    "Traffic Signal Condition / Controller": "Traffic light is dark at the corner"}
+NOISE_311 = ["HEATING / HEAT", "Noise - Residential / Loud Music/Party", "Damaged Tree / Branch Cracked and Will Fall",
+             "Traffic Signal Condition / Controller"]  # the everyday 311 background (Sandy week: HEAT was #1)
+NOISE_311_RATE = 0.12
+REPEAT_911 = {"collapsed": .5, "fire": .5, "flooded_homes": .4, "hospital_down": .4}  # chance of repeat calls
+PDA_LADDER = ["Destroyed", "Major", "Minor", "Affected"]
+PDA_INACCESSIBLE = {"flooded_homes": .15, "flooded_street": .15, "collapsed": .15}  # surveyor couldn't reach it
+FIRE_CODES = ["111", "461", "444", "813", "363"]
+PLUTO = {"dense housing": "02 Multi-Family Walk-Up Buildings", "sparse housing": "01 One & Two Family Buildings",
+         "commercial": "05 Commercial & Office Buildings", "park": "09 Open Space & Outdoor Recreation",
+         "hospital": "08 Public Facilities & Institutions (hospital)",
+         "school": "08 Public Facilities & Institutions (school, designated evacuation center)"}
+DECOY_SCHOOLS = 6  # designated evacuation centers that did not open
 TRANSCRIPTS = {
     "collapsed": ["The house next to us came down, there are people inside", "Building collapsed, we can hear someone"],
     "flooded_homes": ["Water's coming in, we're on the second floor with the kids",
@@ -147,6 +182,9 @@ for _src, _table in VALUE_OF.items():
         STATES_OF[_src].setdefault(_value, set()).add(_state)
 STATES_OF["utility-feed"] = {"energized": {"intact"}, "de-energized": {"power_out"},
                              "de-energized, line fault reported": {"downed_lines"}}
+STATES_OF["city-survey"]["Inaccessible"] = set()
+for _noise in NOISE_311:
+    STATES_OF["311"][_noise] = set()
 
 
 def _nyc_water(r, c):
@@ -293,16 +331,27 @@ def reports(world: dict) -> list[dict]:
     def add(src, x, y, value, **extra):  # hour: when the report came in, 0-6 h after landfall (demo feed)
         docs.append({"source": src, "x": x, "y": y, "value": value, "hour": round(rng.uniform(0, 6), 2), **extra})
 
+    to_water = _distance_to_water(~land)
+    facility = {"shelter_open", "hospital_ok", "hospital_down"}
+    ordinary = [c for c in world["cells"] if state[c[1], c[0]] not in facility]
+    decoys = set(rng.sample(ordinary, min(DECOY_SCHOOLS, len(ordinary))))
+
     for x, y in world["cells"]:
         s = state[y, x]
-        band = "low" if elev[y, x] < 2.5 else "mid" if elev[y, x] < 5 else "high"
-        use = {"shelter_open": "public school (designated shelter)", "hospital_ok": "hospital",
-               "hospital_down": "hospital"}.get(s, land_use[y, x])
-        add("pre-storm-map", x, y, f"{use}, {band} ground", land_use=use,
-            elev=float(elev[y, x]))
+        use = ("school" if s == "shelter_open" or (x, y) in decoys else
+               "hospital" if s in ("hospital_ok", "hospital_down") else land_use[y, x])
+        noisy = elev[y, x] + rng.gauss(0, 1.0)  # pre-storm maps are miscalibrated priors, not oracles
+        zone = int(min(6, max(1, 1 + noisy // 1.5)))
+        fema = ("VE" if to_water[y, x] <= 1 and noisy < 2 else "AE" if noisy < 3 else
+                "X (shaded)" if noisy < 4.5 else "X")
+        add("pre-storm-map", x, y, PLUTO[use], land_use=use, elev=float(elev[y, x]), evac_zone=zone, flood_zone=fema)
         if rng.random() < COVERAGE["911-call"].get(s, 0):
-            rx, ry = (rng.choice(_neighbors(x, y, land)) if rng.random() < SHIFT_911 else (x, y))
-            add("911-call", rx, ry, VALUE_OF["911-call"][s], transcript=rng.choice(TRANSCRIPTS[s]))
+            transcripts = TRANSCRIPTS[s][:]
+            rng.shuffle(transcripts)
+            calls = 1 + (rng.random() < REPEAT_911.get(s, 0)) + (rng.random() < REPEAT_911.get(s, 0) / 2)
+            for i in range(calls):  # severe incidents draw repeat calls, each located independently
+                rx, ry = (rng.choice(_neighbors(x, y, land)) if rng.random() < SHIFT_911 else (x, y))
+                add("911-call", rx, ry, VALUE_OF["911-call"][s], transcript=transcripts[i % len(transcripts)])
         if rng.random() < COVERAGE["social-post"].get(s, 0):
             verified = rng.random() < SOCIAL_VERIFIED
             tag = VALUE_OF["social-post"][s] if rng.random() < SOCIAL_ACC[verified] else rng.choice(
@@ -313,16 +362,21 @@ def reports(world: dict) -> list[dict]:
             add("social-post", x, y, tag, verified=True, handle=rng.choice(VIRAL), post=rng.choice(POSTS[tag]))
         if rng.random() < COVERAGE["311"].get(s, 0):
             add("311", x, y, VALUE_OF["311"][s], complaint=CALLS_311[VALUE_OF["311"][s]])
+        if rng.random() < NOISE_311_RATE:
+            noise = rng.choice(NOISE_311)
+            add("311", x, y, noise, complaint=CALLS_311[noise])
         if rng.random() < COVERAGE["city-survey"].get(s, 0):
-            ladder = ["Category A", "Category B", "Category C", "Category D", "Category E"]
-            k = ladder.index(VALUE_OF["city-survey"][s])
-            if rng.random() > SURVEY_ACC:
-                k = min(4, max(0, k + rng.choice([-1, 1])))
-            add("city-survey", x, y, ladder[k])
+            if rng.random() < PDA_INACCESSIBLE.get(s, 0):
+                add("city-survey", x, y, "Inaccessible")
+            else:
+                k = PDA_LADDER.index(VALUE_OF["city-survey"][s])
+                if rng.random() > SURVEY_ACC:
+                    k = min(len(PDA_LADDER) - 1, max(0, k + rng.choice([-1, 1])))
+                add("city-survey", x, y, PDA_LADDER[k])
         if rng.random() < COVERAGE["fire-dept"].get(s, 0):
             value = VALUE_OF["fire-dept"][s]
             if rng.random() > FIRE_ACC:
-                value = rng.choice([v for v in ("Minor", "Major", "Destroyed") if v != value])
+                value = rng.choice([v for v in FIRE_CODES if v != value])
             add("fire-dept", x, y, value)
         if x in drone_cols:
             value = VALUE_OF["drone-pass"][s]
@@ -358,20 +412,21 @@ def doc_text(doc: dict, target=None, glosses: dict | None = None) -> str:
     shown = f"{value} ({gloss})" if gloss else value
     loc = where(doc["x"], doc["y"], target)
     if src == "911-call":
-        return f'[911-call] {loc}: dispatch code {shown}. Caller: "{doc["transcript"]}"'
+        return f'[911-call] {loc}: call type {shown}. Caller: "{doc["transcript"]}"'
     if src == "social-post":
         return (f'[social-post] {loc}: @{doc["handle"]} (verified: {"yes" if doc["verified"] else "no"}): '
                 f'"{doc["post"]}" {shown}')
     if src == "311":
         return f'[311] {loc}: {shown}: "{doc["complaint"]}"'
     if src == "city-survey":
-        return f"[city-survey] {loc}: damage category {shown}"
+        return f"[city-survey] {loc}: FEMA PDA damage level {shown}"
     if src == "fire-dept":
-        return f"[fire-dept] {loc}: incident severity {shown}"
+        return f"[fire-dept] {loc}: NFIRS incident type {shown}"
     if src == "pre-storm-map":
-        return f"[pre-storm-map] {loc}: {shown}, elevation {doc['elev']:.1f} m (surveyed before the storm)"
+        return (f"[pre-storm-map] {loc}: PLUTO land use {shown}; hurricane evacuation zone {doc['evac_zone']}; "
+                f"FEMA flood zone {doc['flood_zone']}; elevation {doc['elev']:.1f} m (mapped before the storm)")
     if src == "drone-pass":
-        return f"[drone-pass] {loc}: {shown}"
+        return f"[drone-pass] {loc}: image labels {shown}"
     if src == "utility-feed":
         return f"[utility-feed] {loc}, feeder {doc['feeder']}: {shown}"
     raise ValueError(src)
