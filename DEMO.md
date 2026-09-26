@@ -18,6 +18,7 @@ a storm it never saw, and can't cheat because MongoDB locks the answers away.
 - [Run the backend](#run-the-backend)
 - [Score tonight's storm (once)](#score-tonights-storm-once)
 - [Dashboard and stage demo](#dashboard-and-stage-demo)
+- [LangSmith tracing](#langsmith-tracing)
 - [Results](#results)
 - [Robust loop vs naive loop vs random](#robust-loop-vs-naive-loop-vs-random)
 - [Status](#status)
@@ -210,7 +211,7 @@ Everything goes through `./sightline.sh`:
 | `./sightline.sh calibrate` | Baseline (floor) vs the builder's reference (ceiling) on real Jev; stores the refs |
 | `./sightline.sh loop --gens 8 --run live-2` | The automatic loop. Add `--resume` to continue a run, `--fake` for a free rehearsal |
 | `./sightline.sh final <run>` | Score tonight's storm and the cities **once** (see below) |
-| `./sightline.sh publish` | Record the run (offline fallback + start-page numbers) and rebuild the stage demo |
+| `./sightline.sh publish` | Record the demo run (`DEMO_RUN`, default `live-2`) for the offline fallback and start page, and rebuild both demo pages pinned to it |
 | `./sightline.sh dashboard` | Run the dashboard locally at http://localhost:3000 |
 | `./sightline.sh deploy` | Deploy the dashboard to Vercel |
 | `./sightline.sh validate [url]` | 39 contract checks against the API |
@@ -244,13 +245,30 @@ hypothesis. Maps land in `out/storm/runs/<run>_gXX/`; the lineage goes to Atlas 
 20–90 s for the curator. Replays are free, because every Jev answer is cached in `puzzle_draft/cache/`. `--fake`
 costs nothing but ignores glosses, so its numbers prove only that the pipeline runs.
 
+### Running your own live runs (several people, one database)
+
+Everyone's local backend writes to the same Atlas database with the logins in their own `.env`; the dashboard
+reads it live. A run shows up within seconds, identified by its run id.
+
+- **Use a unique `--run` name** (`kishore-3`, `brayden-4`). Lineage is keyed by run and generation, so a shared name
+  overwrites the other person's generations.
+- **See it:** `story.html?run=<id>` (add `&view=arena` for the replay; refresh for new generations) or
+  `/api/state?run=<id>`. The judge demo stays pinned to `DEMO_RUN`, and the start page changes only on `publish`.
+  `/api/state` without `?run=` returns the newest run.
+- **Same machine for `--resume` and `final`:** the Jev cache, digests, local lineage and best genome live in `out/`.
+- **Same storm files:** after pulling, run `python puzzle_draft/storm_run.py build` (deterministic). Don't rerun
+  `./sightline.sh world` unless the world version changes: it reloads the shared `reports`.
+- **Once-only scoring is shared:** `final` writes to the shared `heldout_scores`, once per genome and world version.
+  Agree before running it.
+- **Make a run the demo:** `DEMO_RUN=<run> ./sightline.sh publish && ./sightline.sh deploy`, after its `final`.
+
 ## Score tonight's storm (once)
 
 Run this only once the final genome is chosen. It needs a Jev key and `MONGODB_URI_SCORER`.
 
 ```bash
 ./sightline.sh final live-2       # baseline (gen 0) on NYC1, then live-2's best genome on NYC1 + MIA2/HOU2/NOL2
-RUN=live-2 ./sightline.sh publish && ./sightline.sh deploy
+./sightline.sh publish && ./sightline.sh deploy        # DEMO_RUN=<run> ./sightline.sh publish for another run
 ```
 
 `live-2` has been scored (gen 7); `live-1` was scored on the earlier world. The baseline is scored once per world
@@ -279,8 +297,10 @@ numbers come from `dashboard/lib/headline.json`, written by `./sightline.sh publ
   (`./sightline.sh loop`), not from the browser, so judges can't spend credit and the scorer login never sits on
   a public service.
 - `?beat=N` jumps to a step; `?view=arena&autostart=1` opens the arena already playing. Both pages are pinned to
-  `live-2` (`RUN=… bash demo/build_live.sh story` to pin another run; `?run=live-1` shows the earlier run).
+  `live-2` (`DEMO_RUN=<run> ./sightline.sh publish` to pin another run; `?run=live-1` shows the earlier run).
 - The example-data version stays at `/story-example.html`, with a banner.
+- **← Home** in the presenter bar (both demo pages) returns to the start page.
+- For a traced run, the arena links each generation to its LangSmith trace.
 
 **Seven-beat version:** https://sightline-jev.vercel.app/sightline.html is the same story as seven beats, fed by
 the same recorded run:
@@ -307,7 +327,7 @@ the same recorded run:
 
 | Endpoint | Returns |
 |---|---|
-| `GET /api/state?run=live-2` | `run` {id, used, status, cost_usd, best_gen}; `refs` {baseline, ceiling: {dev, val}}; `gens` [{gen, parent, status, gate, dev, val, life_safety_found, false_dispatches, hypothesis, refuted_if, prediction, ops, pipeline, curator}]; `heldout`; `probe` |
+| `GET /api/state?run=live-2` | `run` {id, used, status, cost_usd, best_gen}; `refs` {baseline, ceiling: {dev, val}}; `gens` [{gen, parent, status, gate, dev, val, life_safety_found, false_dispatches, hypothesis, refuted_if, prediction, ops, pipeline, curator, trace_url}]; `heldout`; `probe` |
 | `GET /api/map?run=&gen=&town=` | {w, h, mask, states, colors, split, accuracy, cells: [{x, y, pick, conf, correct, truth}]}. Truth appears only where the scorer published it; tonight is empty until scored |
 | `GET /api/block?run=&gen=&town=&x=&y=` | {lines: the exact text Jev saw, jev: {pick, conf, probs}, assessment, correct} |
 | `GET /api/reports?town=NYC1&until_hour=6` | The report feed in arrival order: [{hour, source, x, y, value, text, verified}] |
@@ -332,7 +352,8 @@ Set `LANGSMITH_API_KEY` and `LANGSMITH_TRACING=true` in `.env` (free Developer p
   ("Open this generation's LangSmith trace").
 - **Blind by design:** the curator never reads LangSmith, and no answer key is sent.
 - The first traced run is `live-traced`: https://sightline-jev.vercel.app/story.html?run=live-traced&view=arena
-  It uses the new real-vocabulary storms, so its numbers aren't comparable with `live-1`.
+  It uses the real-vocabulary storms, so its numbers aren't comparable with `live-1`. `live-2` ran without a
+  LangSmith key, so it has no traces.
 
 **Atlas holds the real-vocabulary world** (loaded for `live-2`, with the new validation storm HOU0). `live-1`'s
 recorded lineage, maps and scores are unchanged, but its report feed (`/api/reports`) now shows the new
@@ -462,9 +483,9 @@ a +5.9-point, P 1.00 validation win over two extra false dispatches; it now allo
 | Storm world: 9 city-shaped storms, 12 states, 8 sources, coverage assertion | Done; real-vocabulary world loaded in Atlas |
 | MongoDB Atlas: schema, three locked logins, tripwire probe, integration test | Done |
 | Harness + ops → pipeline compiler + scorer via the scorer login | Done |
-| Automatic loop with gate, leak guard, memory check, lineage | Done; `live-1` ran 13 generations |
+| Automatic loop with gate, leak guard, memory check, lineage | Done; `live-1` (13 generations, simple gate) and `live-2` (8 generations, robust gate) |
 | Robust loop: bootstrap gate on 2 validation storms, harm guardrail, Atlas vector notebook, diff digest | Done in `driver.py`; `live-2` ran 8 generations on it (the lab's prune pass is not ported) |
-| Dashboard API (39/39 checks), start page, stage demo on live data, offline fallback | Done, live at https://sightline-jev.vercel.app |
+| Dashboard API (39/39 checks for `live-2` and `live-1`), start page, story + arena on live data, offline fallback | Done, live at https://sightline-jev.vercel.app, pinned to `live-2` |
 | One-command backend (`sightline.sh`) | Done |
 | Tonight's storm + cities scored once | Done: `live-2` NYC1 57.9% → 67.1%, false dispatches 93 → 29 (`live-1`: 62.7% → 67.0%, 131 → 72) |
 | Video | To record |
@@ -473,9 +494,10 @@ a +5.9-point, P 1.00 validation win over two extra false dispatches; it now allo
 
 **Remaining, in order.**
 
-1. Deploy the `live-2` build: `cd dashboard && vercel deploy --prod --yes` (needs a logged-in Vercel CLI).
-2. Record the video; add its link to `VIDEO_URL` in `dashboard/app/page.tsx`; redeploy.
-3. Submit.
+1. Record the video; add its link to `VIDEO_URL` in `dashboard/app/page.tsx`; `./sightline.sh deploy`.
+2. Submit.
+
+The `live-2` build is deployed and validated (39/39 API checks for `live-2` and `live-1`).
 
 ## What we learned
 
@@ -518,9 +540,10 @@ a +5.9-point, P 1.00 validation win over two extra false dispatches; it now allo
 
 **Video (2–3 minutes).**
 
-1. Screen-record the stage demo through its 7 beats.
-2. Cut to a terminal running `./sightline.sh loop` (one line per generation).
-3. Show the tripwire probe line.
+1. Screen-record https://sightline-jev.vercel.app/story.html through its seven Story steps.
+2. Switch to **Live arena** (or open `story.html?view=arena&autostart=1`) to show the recorded generations replay.
+3. Cut to a terminal running `./sightline.sh loop` (one line per generation) and, if traced, one LangSmith trace.
+4. Show the tripwire probe line.
 
 Every number on screen is from the recorded run.
 
