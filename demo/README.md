@@ -4,13 +4,15 @@ A standalone, full-screen page for presenting the idea on stage. It shows the ev
 
 Open `sightline-demo.html` in a browser (it loads React 18 and htm from public CDNs), or use the published version: https://claude.ai/artifact/DDSaEo6nZMeL8NLGVSiXs4
 
-## Five beats
+## Seven beats
 
-1. **Generation 0.** Reports stream onto a 32×32 map of Lower Manhattan and the Brooklyn waterfront. "Run generation 0" maps every block with the unevolved harness; its top dispatch is a rumor.
-2. **The fitness signal.** The official assessment arrives and shows where generation 0 failed (four misreads).
-3. **Evolution, live.** Generation card (hypothesis → prediction → backtest fitness → validation selection → verdict), a `LineageTree`, and a supporting score curve. Generation 2 is the trap: the backtest rises but validation falls, so the gate rejects it. Generation 6 is skipped by memory.
-4. **Replay.** The evolved harness on the same night, scored once.
-5. **What it learned.** The final policy as plain rules (`PolicyRules`), each tagged with its generation, plus a town it never saw.
+1. **Calm night.** 1,024 blocks, all quiet. Generation 0 of the harness is deployed; Jev is frozen for the whole demo.
+2. **Storm hits.** Reports stream onto the map: 911, 311, drone passes, social posts, a utility feed with swapped coordinates. Suspicious ones are ringed.
+3. **Generation 0.** The unevolved harness maps every block. Its top dispatch is a rumor.
+4. **The fitness signal.** The official assessment arrives and shows where generation 0 failed.
+5. **Evolution, live.** Generation card (hypothesis, prediction, backtest fitness, validation selection, verdict), a `LineageTree`, a supporting score curve, and tonight’s generation 0 map waiting beside it. A trap generation is rejected by the gate; a repeat idea is skipped by memory.
+6. **Replay.** The evolved harness on the same night, scored once; each misread is tagged with the generation that fixed it.
+7. **What it learned.** The final policy as plain rules (`PolicyRules`), each tagged with its generation; the closing facts; and a city it never saw, with generation 0 in each new city starting further ahead (scenario mode).
 
 Press **Start evolution** in the presenter bar before beat 1; it keeps running in the background. Use the buttons on each screen, the step pills, or the ← → keys.
 

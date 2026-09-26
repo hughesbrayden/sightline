@@ -135,3 +135,5 @@ button:disabled { opacity: 0.4; cursor: default; }
 .whygate { width: 483px; box-sizing: border-box; display: flex; flex-direction: column; gap: 4px; padding: 12px 14px; background: var(--surface-sunken); border-radius: 8px; }
 .intro .big { font-family: var(--font-display); font-size: 48px; line-height: 50px; font-stretch: 87.5%; letter-spacing: -0.02em; }
 .pitch { margin: auto 0 0; font-family: var(--font-display); font-size: 26px; line-height: 33px; font-weight: 500; font-stretch: 87.5%; max-width: 780px; text-wrap: balance; }
+.tonight-mini { display: flex; align-items: center; gap: 14px; padding: 12px; background: var(--surface-sunken); border-radius: 8px; }
+.whygate { width: auto; }
