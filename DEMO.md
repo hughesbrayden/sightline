@@ -1,4 +1,4 @@
-# Jevly: hurricane damage map demo
+# Sightline: hurricane damage map demo
 
 A harness that teaches itself what context to show **Jev**, TypeSafe's fast decision model, proves the result
 on a storm it never saw, and can't cheat because MongoDB locks the answers away.
@@ -19,7 +19,7 @@ itself: 911 calls filed at the wrong block, viral "verified" rumors, two agencie
 utility feed that says "de-energized" for a whole neighborhood. Shown the 12 nearest reports, Jev maps three past
 storms at **56.7%** balanced accuracy and makes **265** false dispatches.
 
-**What we built.** Jevly searches for the context policy, not the prompt or the weights:
+**What we built.** Sightline searches for the context policy, not the prompt or the weights:
 
 1. A blind curator LLM proposes a context policy (a "genome").
 2. The policy compiles to a MongoDB aggregation pipeline (`$geoNear`, `$match`, `$switch`) that picks exactly
@@ -84,6 +84,9 @@ Each source has one planted habit, and each habit can be fixed with a harness op
 | `utility-feed` | accurate but feeder-wide |
 
 ### MongoDB (`jevly` database)
+
+The project is now called Sightline, but the database, logins, local container and LangSmith project keep the
+original `jevly` name, so existing Atlas setups and `.env` files keep working.
 
 | Collection | Contents | Read by | Written by |
 |---|---|---|---|
@@ -220,21 +223,48 @@ state names and colors are in `dashboard/lib/storm-meta.json`, generated from `s
 | 3 | accepted | 61.1% | 72.1% | Raw neighbor listings make Jev over-weight dramatic life-safety reports |
 | 4 | rejected | 62.7% | 72.9% | 911 codes taken at face value (a gain below the gate's 1-point margin) |
 
+**Checklist by workstream** (checked against `main` at `888a146`).
+
+| # | Workstream | Item | Status | Evidence / what's left |
+|---|---|---|---|---|
+| 1 | Storm engine | City-shaped maps (NYC and others) | Done | `storm.py`: 32×32, stylized NYC, Miami, Houston, New Orleans water masks |
+| | | 12 states + coverage assertion | Done | `LIFE_SAFETY` defined; `build` fails if coverage fails |
+| | | Report channels with timestamps | Done | 8 sources; `hour` 0–6 h |
+| | | Splits | Done | dev MIA1/HOU1/NOL1 · val NYC0 · held-out NYC1 · cities MIA2/HOU2/NOL2 |
+| | | Calibration | Partial | Baseline 56.7% dev → builder ceiling 71.5%: a 15-point gap; baseline is noisy, not near-random |
+| 2 | Mongo + compiler | Schema, locked logins, tripwire probe | Done | `mongo_setup.py`, `mongo_itest.py`, verified on Atlas |
+| | | Loader | Done | `storm_run.py load` (admin login) |
+| | | Ops → pipeline compiler | Done | `compile_pipeline`: `$geoNear`, `$match`, `$switch` |
+| | | Scorer via scorer login | Done | Truth read from Mongo; writes `runs`, `gate_scores`, `heldout_scores` |
+| 3 | Loop driver | Curator → validate → gate → lineage | Done | `driver.py`; GLM-5.2 via OpenRouter; lineage in `policies` + jsonl |
+| | | Leak guard | Done | Curator prompt and genome ops checked for towns and coordinates |
+| | | Gate rule | Done | Validation must beat the best by 1 point (`GATE_MARGIN = 0.01`) |
+| | | Rejected-idea memory | Partial | Near-duplicate op matching only; the vector-indexed `memory` collection isn't written or searched by the driver yet |
+| | | First live run | Partial | `live-1` in progress: 2 accepted, 2 rejected; dev 56.7 → 61.1, val 64.6 → 72.1. **3:30 go/no-go target: 3+ accepted, validation rising** |
+| 4 | Scoring + proof | Balanced accuracy, life-safety recall, false dispatches | Done | In `score()` and the digests |
+| | | Held-out + cities scored once | Partial | `--final` gate built; not yet run (command above) |
+| | | Filmstrip / GIF | Not started | Baseline → accepted generations → truth, then tonight |
+| | | "What it learned" card | Not started | The final policy as plain rules, each linked to the generation that found it |
+| | | Field-verified check | Not started | Optional: 20 blocks, accuracy vs Jev's confidence |
+| 5 | Live app | Dashboard API routes | Not started | Read-only login: `/api/state`, `/api/map`, `/api/block`. Contract additions: storm ids, `gate_scores` for the validation number, refs {baseline, ceiling}, report `hour` for the beat-2 feed |
+| | | Sightline connected to real data | Not started | Swap `STATES` to the engine's 12; replace mock numbers and runs with `live-1`; drop the lat/long-swap misread (cut); keep 311 and beat 7 (both real now) |
+| | | Evolution re-cut | Not started | Lineage and the hypothesis → prediction → actual → verdict card at center; add the "What it learned" card |
+| 6 | Demo + submission | Demo runbook | Done | This file |
+| | | README, submission text, Twemoji credit | Partial | README +2 lines; submission text and CC-BY credit still to do |
+| | | Merge branches | Partial | Storm work is on `main`; `rename-to-sightline` is still separate |
+| | | Video, rehearsal, submit | Not started | Record after a real run so every number is real |
+| 7 | Extras (cut first) | LangSmith | Partial | Env vars only; no tracing (free Developer plan: set `LANGSMITH_API_KEY`) |
+| | | ElevenLabs, curator swap, misread pins | Not started | Optional |
+
 **Remaining, in priority order.**
 
-1. 3:30 go/no-go: finish `live-1`. Target: 3 or more accepted generations with validation rising.
-2. Score tonight's storm and the other cities once with the final genome (command above).
-3. Dashboard API routes on the read-only login: `/api/state`, `/api/map`, `/api/block`. Contract additions:
-   storm ids, `gate_scores` for the validation number, refs {baseline, ceiling}, and report `hour` for the beat-2
-   feed.
-4. Connect the Sightline demo to real data:
-   - swap its `STATES` table to the engine's 12;
-   - replace mock numbers and runs with `live-1`;
-   - drop run 2 (the lat/long swap, which is cut).
-5. Filmstrip/GIF: baseline → accepted generations → truth, then tonight.
-6. Record the video; write the submission text; add the Twemoji CC-BY credit.
-7. Optional (cut in this order): LangSmith traces (free Developer plan: set `LANGSMITH_API_KEY`), the
-   field-verified spot check, the misread pins.
+1. 3:30 go/no-go: finish `live-1` (3+ accepted generations, validation rising).
+2. Score tonight's storm and the other cities once with the final genome.
+3. Dashboard API routes, then connect Sightline to real data.
+4. Filmstrip/GIF and the "What it learned" card.
+5. Merge `rename-to-sightline`; README, submission text and Twemoji credit; record the video; submit.
+6. Optional (cut in this order): vector memory in the driver, LangSmith traces, the field-verified check, the
+   misread pins.
 
 ## What we learned
 
