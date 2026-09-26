@@ -29,6 +29,7 @@ import storm  # noqa: E402
 from jevlib import get_backend, load_env  # noqa: E402
 from storm_harness import GenomeError, compile_pipeline, load_genome, validate  # noqa: E402
 from storm_run import GENOMES, OUT, evaluate  # noqa: E402
+import tracing  # noqa: E402
 
 BRIEF = Path(__file__).resolve().parent / "storm_curator_brief.md"
 DEFAULT_MODEL = "z-ai/glm-5.2"
@@ -136,7 +137,9 @@ class Lineage:
             self.curator, self.scorer = connect("curator"), connect("scorer")
 
     def policy(self, doc: dict) -> None:
-        doc = {"run": self.run, "created": now(), **doc}
+        self.last = getattr(self, "last", {})
+        doc = {**self.last.get(doc["gen"], {}), "run": self.run, "created": now(), **doc}
+        self.last[doc["gen"]] = doc
         with open(self.local, "a", encoding="utf-8") as f:
             f.write(json.dumps(doc, default=str) + "\n")
         if self.enabled:
@@ -225,55 +228,96 @@ def main() -> None:
               f"jev {res['stats']['tokens']} tok  {time.perf_counter() - t0:.0f}s")
         first = 1
 
+    traced = []  # (gen, root span): trace links are resolved after upload
     for gen in range(first, first + args.gens):
         t0 = time.perf_counter()
         parent = max(h["gen"] for h in history if h["status"] == "accepted")
-        prompt = build_prompt(brief, history, digest)
-        leak_check(prompt)
-        genome, usage, error = None, {}, None
-        for attempt in range(4):
-            try:
-                if args.curator == "inbox":
-                    genome, usage = inbox_step(args.inbox, gen, prompt)
-                else:
-                    genome, usage = curator_step(prompt if not error else
-                                                 f"{prompt}\n\nYour last reply was invalid: {error}. Fix it.", model, key)
-                genome["id"] = f"{run}_g{gen:02d}"
-                validate(genome)
-                break
-            except (GenomeError, json.JSONDecodeError, httpx.HTTPError, KeyError) as e:
-                error, genome = str(e)[:300], None
-                if args.curator == "inbox":  # hand the error back to the curator with the same prompt
-                    bad = args.inbox / f"g{gen:02d}_reply.json"
-                    bad.replace(bad.with_name(f"g{gen:02d}_reply_invalid_{attempt}.json"))
-                    inbox_step(args.inbox, gen, f"{prompt}\n\nYour last reply was invalid: {error}. Fix it.")
-        if genome is None:
-            history.append({"gen": gen, "status": "invalid", "genome": {"ops": []}, "gate": None})
-            lineage.policy({"gen": gen, "parent": parent, "status": "invalid", "error": error, "curator": usage})
-            print(f"  gen {gen}  INVALID after 4 tries: {error}")
-            continue
-        base_doc = {"gen": gen, "parent": parent, "genome_id": genome["id"], "ops": genome["ops"],
-                    "format": genome.get("format", "raw"), "compiled_pipeline": compile_pipeline(genome),
-                    "rationale": genome.get("rationale"), "prediction": genome.get("prediction"), "curator": usage}
-        if dup := near_duplicate(genome, history):
-            history.append({"gen": gen, "status": "skipped", "genome": genome, "gate": f"repeat of gen {dup['gen']}"})
-            lineage.policy({**base_doc, "status": "skipped", "note": f"near-duplicate of gen {dup['gen']}; not scored"})
-            print(f"  gen {gen}  skipped    near-duplicate of gen {dup['gen']} ({usage.get('seconds')}s curator)")
-            continue
-        lineage.policy({**base_doc, "status": "running"})
-        res = evaluate(genome, DEV + VAL, backend, args.truth, quiet=True)
-        val = res["towns"][VAL[0]]["balanced_accuracy"]
-        gate = "pass" if val > best_val + GATE_MARGIN else "fail"
-        status = "accepted" if gate == "pass" else "rejected"
-        if gate == "pass":
-            best_val = val
-        history.append({"gen": gen, "status": status, "genome": genome, "dev": dev_summary(res["dev"]), "gate": gate})
-        lineage.policy({**base_doc, "status": status, "dev_score": dev_summary(res["dev"]), "gate": gate})
-        lineage.scores(gen, res, gate)
-        digest = res["digest"].read_text(encoding="utf-8")
-        print(f"  gen {gen}  {status:<9}  dev {res['dev']['balanced_accuracy']:.1%}  val {val:.1%}  gate {gate:<4}  "
-              f"curator {usage.get('prompt_tokens')}+{usage.get('completion_tokens')} tok ${usage.get('cost') or 0:.3f}  "
-              f"jev {res['stats']['tokens']} tok  {time.perf_counter() - t0:.0f}s  | {genome.get('rationale', {}).get('hypothesis', '')[:90]}")
+        with tracing.span(f"{run} · generation {gen}", inputs={"run": run, "gen": gen, "parent_gen": parent, "best_val_so_far": best_val},
+                          metadata={"run": run, "gen": gen, "curator_model": model, "backend": backend.name},
+                          tags=[run, "generation"]) as root:
+            traced.append((gen, root))
+            with tracing.span("prompt + leak check", inputs={"history_generations": len(history)}) as sp:
+                prompt = build_prompt(brief, history, digest)
+                leak_check(prompt)
+                tracing.out(sp, {"leak_check": "passed", "prompt_chars": len(prompt), "prompt": prompt})
+            genome, usage, error = None, {}, None
+            for attempt in range(4):
+                msg = prompt if not error else f"{prompt}\n\nYour last reply was invalid: {error}. Fix it."
+                with tracing.span("curator" if args.curator != "inbox" else "curator (inbox)", run_type="llm",
+                                  inputs={"messages": [{"role": "user", "content": msg}]},
+                                  metadata={"attempt": attempt, "ls_model_name": model, "ls_provider": "openrouter"}) as cs:
+                    try:
+                        if args.curator == "inbox":
+                            genome, usage = inbox_step(args.inbox, gen, prompt)
+                        else:
+                            genome, usage = curator_step(msg, model, key)
+                        genome["id"] = f"{run}_g{gen:02d}"
+                        validate(genome)
+                        tracing.out(cs, {"genome": genome, "valid": True, "usage_metadata": {
+                            "input_tokens": usage.get("prompt_tokens") or 0, "output_tokens": usage.get("completion_tokens") or 0,
+                            "total_tokens": (usage.get("prompt_tokens") or 0) + (usage.get("completion_tokens") or 0)},
+                            "cost_usd": usage.get("cost")})
+                        break
+                    except (GenomeError, json.JSONDecodeError, httpx.HTTPError, KeyError) as e:
+                        error, genome = str(e)[:300], None
+                        tracing.out(cs, {"valid": False, "error": error})
+                        if args.curator == "inbox":  # hand the error back to the curator with the same prompt
+                            bad = args.inbox / f"g{gen:02d}_reply.json"
+                            bad.replace(bad.with_name(f"g{gen:02d}_reply_invalid_{attempt}.json"))
+                            inbox_step(args.inbox, gen, f"{prompt}\n\nYour last reply was invalid: {error}. Fix it.")
+            if genome is None:
+                history.append({"gen": gen, "status": "invalid", "genome": {"ops": []}, "gate": None})
+                lineage.policy({"gen": gen, "parent": parent, "status": "invalid", "error": error, "curator": usage})
+                tracing.out(root, {"status": "invalid", "error": error})
+                print(f"  gen {gen}  INVALID after 4 tries: {error}")
+                continue
+            base_doc = {"gen": gen, "parent": parent, "genome_id": genome["id"], "ops": genome["ops"],
+                        "format": genome.get("format", "raw"), "compiled_pipeline": compile_pipeline(genome),
+                        "rationale": genome.get("rationale"), "prediction": genome.get("prediction"), "curator": usage}
+            with tracing.span("memory check", inputs={"ops": genome["ops"]}) as ms:
+                dup = near_duplicate(genome, history)
+                tracing.out(ms, {"near_duplicate_of_gen": dup["gen"] if dup else None})
+            if dup:
+                history.append({"gen": gen, "status": "skipped", "genome": genome, "gate": f"repeat of gen {dup['gen']}"})
+                lineage.policy({**base_doc, "status": "skipped", "note": f"near-duplicate of gen {dup['gen']}; not scored"})
+                tracing.out(root, {"status": "skipped", "near_duplicate_of_gen": dup["gen"]})
+                print(f"  gen {gen}  skipped    near-duplicate of gen {dup['gen']} ({usage.get('seconds')}s curator)")
+                continue
+            lineage.policy({**base_doc, "status": "running"})
+            with tracing.span("evaluate: Jev maps every block, scorer grades", inputs={
+                    "genome": genome, "compiled_pipeline": base_doc["compiled_pipeline"], "towns": DEV + VAL}) as ev:
+                res = evaluate(genome, DEV + VAL, backend, args.truth, quiet=True)
+                v = res["towns"][VAL[0]]
+                tracing.out(ev, {"dev": dev_summary(res["dev"]), "stats": res["stats"],
+                                 "validation": {k: v[k] for k in ("balanced_accuracy", "life_safety_recall", "false_dispatches")},
+                                 "curator_digest": res["digest"].read_text(encoding="utf-8")})
+            val = res["towns"][VAL[0]]["balanced_accuracy"]
+            with tracing.span("gate", inputs={"validation": val, "best_so_far": best_val, "margin": GATE_MARGIN}) as gs:
+                gate = "pass" if val > best_val + GATE_MARGIN else "fail"
+                status = "accepted" if gate == "pass" else "rejected"
+                tracing.out(gs, {"gate": gate, "status": status, "delta": val - best_val})
+            if gate == "pass":
+                best_val = val
+            history.append({"gen": gen, "status": status, "genome": genome, "dev": dev_summary(res["dev"]), "gate": gate})
+            lineage.policy({**base_doc, "status": status, "dev_score": dev_summary(res["dev"]), "gate": gate})
+            lineage.scores(gen, res, gate)
+            digest = res["digest"].read_text(encoding="utf-8")
+            hyp = (genome.get("rationale") or {}).get("hypothesis", "") if isinstance(genome.get("rationale"), dict) else str(genome.get("rationale") or "")
+            tracing.out(root, {"status": status, "gate": gate, "dev_balanced_accuracy": res["dev"]["balanced_accuracy"],
+                               "val_balanced_accuracy": val, "hypothesis": hyp, "ops": genome["ops"]})
+            tracing.scores(root, {"dev_balanced_accuracy": res["dev"]["balanced_accuracy"], "val_balanced_accuracy": val,
+                                  "life_safety_recall": res["dev"]["life_safety_recall"],
+                                  "false_dispatches": res["dev"]["false_dispatches"], "brier": res["dev"]["brier"],
+                                  "gate_pass": 1.0 if gate == "pass" else 0.0})
+            print(f"  gen {gen}  {status:<9}  dev {res['dev']['balanced_accuracy']:.1%}  val {val:.1%}  gate {gate:<4}  "
+                  f"curator {usage.get('prompt_tokens')}+{usage.get('completion_tokens')} tok ${usage.get('cost') or 0:.3f}  "
+                  f"jev {res['stats']['tokens']} tok  {time.perf_counter() - t0:.0f}s  | {hyp[:90]}"
+)
+    tracing.flush()
+    for g, root in traced:  # link each generation's lineage record to its LangSmith trace
+        if (link := tracing.url(root)):
+            lineage.policy({"gen": g, "trace_url": link})
+            print(f"  trace gen {g}: {link}")
     accepted = [h for h in history if h["status"] == "accepted"]
     print(f"  done: {len(accepted) - 1} accepted of {args.gens}; best gen {accepted[-1]['gen']} "
           f"(dev {accepted[-1]['dev']['balanced_accuracy']:.1%}, val {best_val:.1%}). Lineage: {lineage.local.relative_to(storm.ROOT)}")

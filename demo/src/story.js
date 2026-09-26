@@ -446,6 +446,7 @@
           <div className="row gap40 end"><${Stat} label=${F.live ? 'Validation balanced accuracy, lineage' : 'Blocks right, lineage so far'} value=${pct(bestAcc)} size="xxl" color="var(--series-heldout)" /><${Stat} label="Since generation 0" value=${bestAcc != null && startAcc != null ? sgn(bestAcc - startAcc) + ' pts' : '—'} size="md" color="var(--good)" /></div>
           <div className="itercard">
             <div className="row between"><strong>${!st.started ? 'Ready' : st.done ? 'All ' + LAST + ' generations done' : 'Generation ' + (run.run - 1)}</strong><span className="muted xs">${st.started && !st.done && src.predicted != null ? 'Predicts +' + (src.predicted * 100).toFixed(0) + ' points' : ''}</span></div>
+            ${F.live && st.started && run.trace ? html`<a href=${run.trace} target="_blank" rel="noopener" className="xs" style=${{ color: 'var(--accent)' }}>Open this generation's LangSmith trace ↗</a>` : null}
             <span>${!st.started ? 'Press Start evolution. Each generation proposes one change, compiles it to a MongoDB pipeline, has Jev backtest every block, scores the map against the locked assessment, and joins the lineage only if the score rises.' : st.done ? 'The evolved harness is saved to the lineage and is what runs on the next live storm.' : src.hyp}</span>
             <div className="phases">${['Propose', 'Compile', 'Backtest', 'Score', 'Verdict'].map(function (name) {
               var names = plan.map(function (p) { return p[0]; });

@@ -17,6 +17,7 @@ a storm it never saw, and can't cheat because MongoDB locks the answers away.
 - [Run the backend](#run-the-backend)
 - [Score tonight's storm (once)](#score-tonights-storm-once)
 - [Dashboard and stage demo](#dashboard-and-stage-demo)
+- [LangSmith tracing](#langsmith-tracing)
 - [Results](#results)
 - [Status](#status)
 - [What we learned](#what-we-learned)
@@ -335,6 +336,25 @@ newest generation, which may be a rejected one.
 secret server-side variable (never add a `NEXT_PUBLIC_` variant). The old address,
 https://sightline-dashboard.vercel.app, also works.
 
+## LangSmith tracing
+
+Set `LANGSMITH_API_KEY` and `LANGSMITH_TRACING=true` in `.env` (free Developer plan; project `jevly`). Then every
+`./sightline.sh loop` generation becomes one trace (`puzzle_draft/tracing.py`):
+
+- **Spans:** prompt + leak check → curator (model, tokens, cost, raw genome or the validation error, per retry) →
+  memory check → evaluation (Jev over 3,111 blocks, dev and validation scores, the curator's 30-trace digest) → gate.
+- **Feedback on each trace:** dev and validation balanced accuracy, life-safety recall, false dispatches, Brier,
+  gate pass.
+- **Links:** each generation's `policies.trace_url`, exposed by `/api/state` and shown in the Live arena
+  ("Open this generation's LangSmith trace").
+- **Blind by design:** the curator never reads LangSmith, and no answer key is sent.
+- The first traced run is `live-traced`: https://sightline-jev.vercel.app/story.html?run=live-traced&view=arena
+  It uses the new real-vocabulary storms, so its numbers aren't comparable with `live-1`.
+
+**Don't run `./sightline.sh world` before judging.** `main` now generates the real-vocabulary storms, and `world`
+reloads Atlas `reports` in that vocabulary, which would change the feed the pinned `live-1` demo shows. The answer
+key is byte-identical in both worlds.
+
 ## Results
 
 **Calibration on real Jev** (before any curator ran):
@@ -389,7 +409,8 @@ New Orleans 66.2% balanced accuracy, with 38, 55 and 30 false dispatches.
 | One-command backend (`sightline.sh`) | Done |
 | Tonight's storm + cities scored once | Done: NYC1 62.7% → 67.0%, false dispatches 131 → 72 |
 | Video | To record |
-| Vector search in the memory check, LangSmith traces, field-verified spot check | Not done (optional; cut first) |
+| LangSmith tracing (one trace per generation, scores as feedback, links in the arena) | Done |
+| Vector search in the memory check, field-verified spot check | Not done (optional) |
 
 **Remaining, in order.**
 

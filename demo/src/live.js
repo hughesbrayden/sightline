@@ -189,7 +189,7 @@
           // ---- generations (the recorded lineage) ----
           var bestVal = null, bestGen = null, prevOps = {};
           var gens = st.gens.filter(function (g) { return g.status !== 'running'; }).map(function (g) {
-            var out = { gen: g.gen, hyp: g.hypothesis || '', predicted: predicted(g.prediction), parent: bestGen, rule: null };
+            var out = { gen: g.gen, hyp: g.hypothesis || '', predicted: predicted(g.prediction), parent: bestGen, rule: null, trace: g.trace_url || null };
             if (g.dev == null) {
               return Object.assign(out, { status: 'skipped', memory: g.status === 'skipped',
                 note: g.status === 'skipped' ? (g.note || 'Too close to an idea that already failed. Not scored.')
@@ -289,7 +289,7 @@
             F.runs = gens.map(function (G) {
               return { run: G.gen + 1, status: G.status === 'kept' || G.status === 'baseline' ? 'accepted' : G.status,
                        hyp: G.hyp || G.note || '', predicted: G.predicted, cells: G.cells || null, conf: G.conf || null,
-                       acc: G.val != null ? G.val : null, dev: G.dev, note: G.note };
+                       acc: G.val != null ? G.val : null, dev: G.dev, note: G.note, trace: G.trace || null };
             });
             var heldBy = {}; (st.heldout || []).forEach(function (x) { if (x.genome_id !== 'baseline') heldBy[x.town] = x; });
             var tonightHeld = heldBy.NYC1;

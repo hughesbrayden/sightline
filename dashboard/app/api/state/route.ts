@@ -43,6 +43,7 @@ export async function GET(req: Request) {
       hypothesis: r.hypothesis ?? null, refuted_if: r.refuted_if ?? null, prediction: p.prediction ?? null,
       ops: p.ops ?? [], format: p.format ?? "raw", pipeline: p.compiled_pipeline ?? [],
       note: p.note ?? p.error ?? null, curator: p.curator ?? null, created: p.created ?? null,
+      trace_url: (p as { trace_url?: string }).trace_url ?? null,  // LangSmith trace of this generation, if traced
     };
   });
   const scored = gens.filter((g) => g.dev !== null);
