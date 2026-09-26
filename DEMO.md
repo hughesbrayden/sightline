@@ -160,18 +160,22 @@ and hospital_down.
 
 ### Report sources
 
-Each source has one planted habit, and each habit can be fixed with a harness op:
+The storms are simulated, but every source speaks the vocabulary of its real-world counterpart (NYC, Hurricane
+Sandy era). Each has a planted habit that a harness op can fix. The model sees one static post-storm snapshot.
 
-| Source | Habit |
-|---|---|
-| `911-call` | often filed one block off (the call is about a neighbor) |
-| `311` | low-severity complaints; accurate |
-| `social-post` | a few viral `verified: yes` accounts spread false collapse, fire and flood reports |
-| `city-survey` | letter scale A–E where **A is the worst** |
-| `fire-dept` | Minor / Major / Destroyed (a second agency, a second scale) |
-| `pre-storm-map` | stale prior: land use and elevation |
-| `drone-pass` | accurate, about 30% coverage; power outages look like "no visible damage" |
-| `utility-feed` | accurate but feeder-wide |
+| Source | Real-world counterpart | Vocabulary (examples) | Habit |
+|---|---|---|---|
+| `911-call` | NYPD / FDNY CAD call types | `STRUCTURAL: BUILDING COLLAPSE`, `UTILITY EMERGENCY - ELECTRIC`, `ASSIST CIVILIAN - NON-MEDICAL` | vague codes shared by several states; often filed one block off (FCC Phase II: 50–150 m); repeat calls on severe incidents |
+| `311` | NYC 311 (complaint type / descriptor) | `Sewer / Street Flooding (SJ)`, `Damaged Tree / Entire Tree Has Fallen Down` | accurate but low-severity, buried in the everyday background (`HEATING / HEAT`, noise); power outages go to Con Ed, not 311 |
+| `social-post` | Twitter/X | hashtags, `verified: yes/no` | viral "verified" (paid-badge) accounts spread false collapse, fire and flood reports |
+| `city-survey` | FEMA Preliminary Damage Assessment | `Destroyed`, `Major`, `Minor`, `Affected`, `Inaccessible` | a second damage scale: "Major" means water inside homes, "Affected" means cosmetic only |
+| `fire-dept` | NFIRS incident types | `111` building fire, `363` swift water rescue, `444` power line down, `461` collapse, `813` hurricane assessment | numeric codes that need translating |
+| `pre-storm-map` | NYC PLUTO, evacuation zones, FEMA flood zones, LiDAR | `02 Multi-Family Walk-Up Buildings`; evacuation zone 1–6; flood zone AE/VE/X | a miscalibrated prior; every school is a designated evacuation center, but only some open |
+| `drone-pass` | NOAA / Civil Air Patrol imagery (RescueNet / FloodNet labels) | `Building-Flooded`, `Road-Blocked`, `Building-Total-Destruction` | about 30% coverage in flight strips; overhead imagery can't see power outages |
+| `utility-feed` | utility outage management | `energized`, `de-energized` by feeder | accurate but feeder-wide |
+
+Calibration after the real-vocabulary cutover (TypeSafe `jev-latest`): baseline 59.1% dev / 52.5% validation;
+builder reference 69.0% / 70.7%; dev false dispatches 207 → 58.
 
 ### Harness ops
 
