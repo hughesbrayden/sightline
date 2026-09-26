@@ -18,7 +18,8 @@ Press **Start evolution** in the presenter bar before beat 1; it keeps running i
 
 ## Files
 
-- `src/app.js`: the app (React 18 + htm, no build step).
+- `src/story.js` and `src/story.css`: the click-through story with the Story / Live arena switch, built by `build.sh` into `sightline-demo.html` (example data).
+- `src/app.js`: the seven-beat app used by the live-data page (`build_live.sh`, fed by `src/live.js`).
 - `src/app.css`: page and layout styles.
 - `src/scenario.js`: the example scenario (stylized maps, storms, generations). **All data is illustrative**, except the v4 origin numbers on the gate card (46% → 93% dev, 50% → 45% held-out).
 - `src/tokens.css`: the Sightline tokens compiled to CSS variables.

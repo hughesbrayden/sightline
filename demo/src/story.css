@@ -1,0 +1,19 @@
+/* Generation 0: the model running */
+.inflight { position: absolute; transform: translate(-50%, -50%); width: 20px; height: 20px; box-shadow: 0 0 0 2px var(--accent), 0 0 0 4px var(--accent-soft); pointer-events: none; z-index: 2; }
+@media (prefers-reduced-motion: no-preference) { .inflight { animation: inflight 0.5s ease-in-out infinite alternate; } }
+@keyframes inflight { from { opacity: 1; } to { opacity: 0.45; } }
+.runbox { display: flex; flex-direction: column; gap: 10px; padding: 16px 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+.runbar { height: 6px; background: var(--surface-sunken); }
+.runbar div { height: 6px; background: var(--accent); transition: width 240ms linear; }
+.readcard { display: flex; flex-direction: column; gap: 10px; padding: 14px 16px; background: var(--surface-sunken); border-radius: 10px; }
+.readlines { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 4px; }
+.readlines li { display: grid; grid-template-columns: 22px 130px minmax(0, 1fr); gap: 8px; font-size: 12px; line-height: 17px; }
+.answer { display: flex; align-items: center; gap: 10px; padding-top: 10px; border-top: 1px solid var(--line); font-size: 15px; }
+.swatch-inline { width: 16px; height: 16px; display: inline-block; }
+.decrow { display: grid; grid-template-columns: 52px 150px minmax(0, 1fr) 44px; gap: 10px; align-items: baseline; padding: 6px 0; border-bottom: 1px solid var(--line); animation: rise 240ms ease-out; }
+
+/* Generation 0 running: keep the panel inside the screen */
+.panel { min-height: 0; overflow: hidden; }
+.clip { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.readlines li { align-items: baseline; }
+.decrow { grid-template-columns: 52px minmax(0, 150px) minmax(0, 1fr) 44px; }
