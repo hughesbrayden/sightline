@@ -12,7 +12,7 @@
 #   world                      generate the 8 simulated storms (deterministic), render truth maps, load into MongoDB
 # Harness
 #   calibrate                  baseline vs the builder's reference policy on real Jev (floor and ceiling) -> refs
-#   loop [--gens N] [--run ID] [--resume] [--fake]
+#   loop [--gens N] [--run ID] [--resume] [--fake | --local]
 #                              the automatic loop: curator proposes, Jev maps, scorer grades, gate keeps or rejects
 #   final <run>                score tonight's storm + next season's cities ONCE with the run's best genome
 #                              (and the baseline on tonight, for the before/after). Never fed back into the loop.
@@ -74,6 +74,7 @@ cmd_loop() {
       --run) run=$2; shift 2 ;;
       --resume) extra+=(--resume); shift ;;
       --fake) extra+=(--backend fake --no-mongo --truth file); shift ;;
+      --local) extra+=(--no-mongo); shift ;;  # real Jev + curator, lineage kept local (dashboard untouched)
       *) echo "unknown option $1"; exit 2 ;;
     esac
   done

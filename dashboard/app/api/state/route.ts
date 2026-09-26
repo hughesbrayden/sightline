@@ -26,7 +26,8 @@ export async function GET(req: Request) {
     d.collection("policies").find({ kind: "probe" }, { projection: { _id: 0 } }).sort({ created: -1 }).limit(1).next(),
   ]);
   const valByGen = new Map(gates.map((g) => [g.gen as number, g]));
-  const genomeIds = policies.map((p) => p.genome_id).filter(Boolean) as string[];
+  // This run's genomes, plus the shared baseline (generation 0 is the baseline genome, scored once on tonight's storm).
+  const genomeIds = [...(policies.map((p) => p.genome_id).filter(Boolean) as string[]), "baseline"];
   const heldout = await d.collection("heldout_scores")
     .find({ genome_id: { $in: genomeIds } }, { projection: { _id: 0 } }).sort({ created: 1 }).toArray();
 

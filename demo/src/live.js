@@ -77,7 +77,7 @@
       if (!t) continue;
       total++; if (p === t) right++;
       if (LIFE[t]) { critTotal++; if (p === t) critFound++; }
-      if (LIFE[p] && !LIFE[t]) falseAlarms++;
+      if (LIFE[p] && t === 'intact') falseAlarms++;  // the scorer's false_dispatches: life-safety call on an intact block
     }
     return { acc: total ? right / total : null, critTotal: critTotal, critFound: critFound, falseAlarms: falseAlarms,
              flagged: flagged.length, flaggedIdx: flagged };

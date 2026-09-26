@@ -275,8 +275,8 @@ Run this only once the final genome is chosen. It needs `OPENROUTER_API_KEY` (wi
 
 ## Dashboard and stage demo
 
-**Start page:** https://sightline-jev.vercel.app shows the pitch, the real numbers, the learned rules, the
-tripwire denial and links to each beat. It's static, so it works even if the database is unreachable. Its
+**Start page:** https://sightline-jev.vercel.app shows the pitch, the held-out results, the learned rules, the
+tripwire denial, both architecture diagrams and links to each beat. It's static, so it works even if the database is unreachable. Its
 numbers come from `dashboard/lib/headline.json`, written by `./sightline.sh publish`.
 
 **Stage demo:** https://sightline-jev.vercel.app/sightline.html is Brayden's seven-beat Sightline story, fed by
@@ -292,13 +292,17 @@ the recorded run through `demo/src/live.js`:
 
 - The maps, reports, misreads (with the line Jev misread), lineage, scores and rules are all real. Clicking a
   block shows the exact lines Jev saw.
-- Until tonight's storm is scored, the demo night is the past NYC validation storm, and the page says so.
+- The demo night is tonight's held-out NYC storm (it fell back to the validation storm until that was scored).
 - Query parameters: `?beat=N` jumps to a beat; `?run=<id>` picks a run; `?scenario=1` shows the original
   illustrative story; `?snapshot=1` forces the offline fallback.
 - **Offline fallback:** if the API is unreachable, the demo loads `snapshot.json` (a recording of the run) and
   looks the same.
 - Engine states are drawn in the design system's palette: flooded_homes → homes flooded, collapsed → destroyed,
   roof_damage → wind or roof, power_out and downed_lines → power out, hospital_down → major damage.
+
+**Brayden's click-through story** with the Story / Live-arena switch (example data) is at
+https://sightline-jev.vercel.app/story.html, with a banner marking it illustrative. It's built by `demo/build.sh`
+from `demo/src/story.js`.
 
 **API** (read-only `dashboard` login, server-side only; cross-origin GET allowed):
 
@@ -345,13 +349,18 @@ https://sightline-dashboard.vercel.app, also works.
 | 13 | not scored | – | – | Stopped: OpenRouter out of credit for Jev |
 
 The final genome is generation 3. It drops social posts, shows the block's own reports, and summarizes
-neighbors within 2 blocks instead of listing them. On the NYC validation storm, generation 0 → generation 3:
+neighbors within 2 blocks instead of listing them. The curator's LLM cost for all 13 generations was $0.18.
 
-- blocks right: 67.7% → 71.5%;
-- rescue-critical found: 35 → 37 of 57;
-- crews sent to the wrong block: 119 → 59.
+**Tonight's storm (NYC1): held out, never trained on, scored once** with `./sightline.sh final live-1`:
 
-The curator's LLM cost for all 13 generations was $0.18.
+| | Generation 0 (baseline) | Generation 3 (evolved) |
+|---|---|---|
+| Balanced accuracy | 62.7% | **67.0%** |
+| False dispatches (life-safety call on an intact block) | 131 | **72** |
+| Rescue-critical blocks found | 70 / 101 | **71 / 101** |
+
+**Next season, cities it never saw** (frozen generation 3, scored once): Miami 68.6%, Houston 66.1%,
+New Orleans 66.2% balanced accuracy, with 38, 55 and 30 false dispatches.
 
 ## Status
 
@@ -363,16 +372,14 @@ The curator's LLM cost for all 13 generations was $0.18.
 | Automatic loop with gate, leak guard, memory check, lineage | Done; `live-1` ran 13 generations |
 | Dashboard API (39/39 checks), start page, stage demo on live data, offline fallback | Done, live at https://sightline-jev.vercel.app |
 | One-command backend (`sightline.sh`) | Done |
-| Tonight's storm + cities scored once | **Blocked on OpenRouter credit for Jev** (about $0.15) |
+| Tonight's storm + cities scored once | Done: NYC1 62.7% → 67.0%, false dispatches 131 → 72 |
 | Video | To record |
 | Vector search in the memory check, LangSmith traces, field-verified spot check | Not done (optional; cut first) |
 
 **Remaining, in order.**
 
-1. Add OpenRouter credit.
-2. Run `./sightline.sh final live-1`, then `publish` and `deploy`.
-3. Record the video; add its link to `VIDEO_URL` in `dashboard/app/page.tsx`; redeploy.
-4. Submit.
+1. Record the video; add its link to `VIDEO_URL` in `dashboard/app/page.tsx`; redeploy.
+2. Submit.
 
 ## What we learned
 

@@ -114,7 +114,8 @@ def main() -> None:
         start = time.perf_counter()
         r = httpx.post("https://openrouter.ai/api/v1/chat/completions", timeout=120,
                        headers={"Authorization": f"Bearer {key}"},
-                       json={"model": model, "max_tokens": 200, "messages": [{"role": "user", "content":
+                       json={"model": model, "max_tokens": 4000, "response_format": {"type": "json_object"},  # same mode as driver.py
+                             "messages": [{"role": "user", "content":
                              'Reply with only this JSON, no prose: {"ok": true, "ops": []}'}]})
         r.raise_for_status()
         d = r.json()
