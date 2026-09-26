@@ -52,7 +52,7 @@
 
   // A map response -> row-major arrays the DamageMap understands.
   function grid(m) {
-    var cells = [], conf = [], truth = [], eng = [], engTruth = [];
+    var cells = [], conf = [], truth = [], eng = [], engTruth = [], lines = [];
     for (var i = 0; i < N * N; i++) {
       var r = Math.floor(i / N), c = i % N, land = m.mask[r][c] === 1;
       cells.push(land ? 'intact' : 'water'); conf.push(1); truth.push(land ? null : 'water');
@@ -62,8 +62,9 @@
       var i = b.y * N + b.x;
       cells[i] = TO_DS[b.pick] || 'intact'; conf[i] = b.conf; eng[i] = b.pick;
       if (b.truth) { truth[i] = TO_DS[b.truth]; engTruth[i] = b.truth; }
+      if (b.lines) lines[i] = b.lines;
     });
-    return { cells: cells, conf: conf, truth: truth, eng: eng, engTruth: engTruth, n: (m.cells || []).length,
+    return { cells: cells, conf: conf, truth: truth, eng: eng, engTruth: engTruth, lines: lines, n: (m.cells || []).length,
              hasTruth: (m.cells || []).some(function (b) { return !!b.truth; }) };
   }
 
@@ -173,7 +174,7 @@
         var backtest = 'MIA1';
         var genNight = heldNYC ? null : 0;  // tonight's gen-0 map exists only if the baseline was also scored once
         var q = function (gen, town) { return '/api/map?run=' + run + '&gen=' + gen + '&town=' + town; };
-        var jobs = [api(base, q(0, night)), api(base, q(best, night)), api(base, '/api/reports?town=' + night + '&until_hour=6')];
+        var jobs = [api(base, q(0, night) + '&lines=1'), api(base, q(best, night)), api(base, '/api/reports?town=' + night + '&until_hour=6')];
         scored.forEach(function (g) { jobs.push(api(base, q(g.gen, backtest))); });
         var cityTowns = ['MIA2', 'HOU2', 'NOL2'].filter(function (t) { return (st.heldout || []).some(function (h) { return h.town === t; }); });
         cityTowns.forEach(function (t) { jobs.push(api(base, q(best, t))); });
@@ -283,6 +284,29 @@
               evolved: Object.assign({ cells: evolved.cells, conf: evolved.conf, top: triage(evolved, where) }, es),
               counts: counts, src: { night: night, zeroGen: 0, bestGen: best }, api: base
             };
+            // For the click-through story (story.js): the recorded lineage as training runs, the once-only cities,
+            // the learned rules as lessons, and generation 0's real lines for the "now reading" panel.
+            F.runs = gens.map(function (G) {
+              return { run: G.gen + 1, status: G.status === 'kept' || G.status === 'baseline' ? 'accepted' : G.status,
+                       hyp: G.hyp || G.note || '', predicted: G.predicted, cells: G.cells || null, conf: G.conf || null,
+                       acc: G.val != null ? G.val : null, dev: G.dev, note: G.note };
+            });
+            var heldBy = {}; (st.heldout || []).forEach(function (x) { if (x.genome_id !== 'baseline') heldBy[x.town] = x; });
+            var tonightHeld = heldBy.NYC1;
+            F.cities = [{ key: 'nyc', name: 'New York', area: 'tonight, held out', cells: evolved.cells, conf: evolved.conf,
+                          acc: tonightHeld ? tonightHeld.score : es.acc, critFound: es.critFound, critTotal: es.critTotal }]
+              .concat(cityTowns.map(function (t, k) {
+                var h2 = heldBy[t], cm2 = cityMaps[k];
+                return { key: t, name: CITY[t.slice(0, 3)], area: 'next season', cells: cm2.cells, conf: cm2.conf,
+                         acc: h2 ? h2.score : score(cm2).acc, critFound: h2 ? h2.life_safety_found : null,
+                         critTotal: h2 ? h2.life_safety_total : null };
+              }));
+            F.lines0 = zero.lines;
+            F.rules = []; gens.forEach(function (G) { (G.rules || []).forEach(function (t) { F.rules.push({ text: t, gen: G.gen }); }); });
+            D.LESSONS = F.rules;
+            var confSum = 0, confN = 0; evolved.eng.forEach(function (p, i) { if (p) { confSum += evolved.conf[i]; confN++; } });
+            F.confFact = "Confidence isn't a check: Jev averaged " + (confSum / confN).toFixed(2) + ' confidence tonight while ' +
+              Math.round((1 - es.acc) * 100) + '% of its blocks were wrong.';
             D.flow = function () { return F; };
             D.nice = function (st) { return NICE[st] || st; };
             D.blockUrl = function (gen, x, y) { return base + '/api/block?run=' + run + '&gen=' + gen + '&town=' + night + '&x=' + x + '&y=' + y; };

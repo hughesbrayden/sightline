@@ -19,7 +19,7 @@ export async function GET(req: Request) {
   const [blocks, cells] = await Promise.all([
     d.collection("blocks").find({ town }, { projection: { _id: 0, x: 1, y: 1 } }).toArray(),
     d.collection("runs").find({ "meta.run": run, "meta.gen": gen, "meta.town": town },
-      { projection: { _id: 0, x: 1, y: 1, pick: 1, conf: 1, correct: 1, truth: 1 } }).toArray(),
+      { projection: { _id: 0, x: 1, y: 1, pick: 1, conf: 1, correct: 1, truth: 1, ...(q.get("lines") ? { lines: 1 } : {}) } }).toArray(),  // ?lines=1: what Jev saw, per block
   ]);
   const mask = Array.from({ length: meta.h }, () => Array(meta.w).fill(0));
   for (const b of blocks) mask[b.y][b.x] = 1;

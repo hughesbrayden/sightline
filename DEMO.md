@@ -6,7 +6,8 @@ a storm it never saw, and can't cheat because MongoDB locks the answers away.
 | | |
 |---|---|
 | **Start page (share this)** | https://sightline-jev.vercel.app |
-| **Stage demo, 7 beats, live data** | https://sightline-jev.vercel.app/sightline.html (`?beat=1..7` jumps to a beat) |
+| **Demo (default): story + live arena, recorded data** | https://sightline-jev.vercel.app/story.html (`?beat=1..7`, `?view=arena&autostart=1`) |
+| **Seven-beat version** | https://sightline-jev.vercel.app/sightline.html |
 | **Read-only API** | https://sightline-jev.vercel.app/api/state · `/api/map` · `/api/block` · `/api/reports` |
 | **Code** | https://github.com/hughesbrayden/sightline |
 | **Backend, one command** | `./sightline.sh help` |
@@ -283,8 +284,22 @@ Run this only once the final genome is chosen. It needs `OPENROUTER_API_KEY` (wi
 tripwire denial, both architecture diagrams and links to each beat. It's static, so it works even if the database is unreachable. Its
 numbers come from `dashboard/lib/headline.json`, written by `./sightline.sh publish`.
 
-**Stage demo:** https://sightline-jev.vercel.app/sightline.html is Brayden's seven-beat Sightline story, fed by
-the recorded run through `demo/src/live.js`:
+**Default demo:** https://sightline-jev.vercel.app/story.html is Brayden's click-through story with the
+**Story / Live arena** switch, fed by the recorded run `live-1` through `demo/src/live.js`:
+
+- **Story tab** (Calm night, Storm hits, Generation 0, Fitness signal, Evolution, Replay, Any city): real maps,
+  reports, the exact lines Jev read ("Now reading block…"), real misreads, the recorded lineage, tonight's
+  once-only score and the three cities.
+- **Live arena:** replays the recorded run generation by generation: the real hypotheses, backtest maps, gate
+  verdicts and validation scores, labeled as a replay. A new run is started from the backend
+  (`./sightline.sh loop`), not from the browser, so judges can't spend credit and the scorer login never sits on
+  a public service.
+- `?beat=N` jumps to a step; `?view=arena&autostart=1` opens the arena already playing. Both pages are pinned to
+  `live-1` (`RUN=… bash demo/build_live.sh story` to pin another run).
+- The example-data version stays at `/story-example.html`, with a banner.
+
+**Seven-beat version:** https://sightline-jev.vercel.app/sightline.html is the same story as seven beats, fed by
+the same recorded run:
 
 1. Calm night
 2. Storm hits
@@ -303,10 +318,6 @@ the recorded run through `demo/src/live.js`:
   looks the same.
 - Engine states are drawn in the design system's palette: flooded_homes → homes flooded, collapsed → destroyed,
   roof_damage → wind or roof, power_out and downed_lines → power out, hospital_down → major damage.
-
-**Brayden's click-through story** with the Story / Live-arena switch (example data) is at
-https://sightline-jev.vercel.app/story.html, with a banner marking it illustrative. It's built by `demo/build.sh`
-from `demo/src/story.js`.
 
 **API** (read-only `dashboard` login, server-side only; cross-origin GET allowed):
 

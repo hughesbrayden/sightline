@@ -9,7 +9,7 @@ type Held = { genome_id: string; town: string; split: string; score: number; lif
               life_safety_total: number; false_dispatches: number };
 
 const pct = (v: number) => `${(v * 100).toFixed(1)}%`;
-const BEATS = ["Calm night", "Storm hits", "Generation 0", "Fitness signal", "Evolution", "Replay", "What it learned"];
+const BEATS = ["Calm night", "Storm hits", "Generation 0", "Fitness signal", "Evolution", "Replay", "Any city"];
 const CITY: Record<string, string> = { MIA2: "Miami", HOU2: "Houston", NOL2: "New Orleans" };
 
 const c = {
@@ -47,7 +47,7 @@ export default function Page() {
         <header style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: `1px solid ${c.line}`, paddingBottom: 14, flexWrap: "wrap", gap: 8 }}>
           <span style={{ fontFamily: display, fontSize: 22, fontWeight: 600, letterSpacing: "-0.01em" }}>Sightline</span>
           <nav style={{ display: "flex", gap: 16, fontSize: 13, flexWrap: "wrap" }}>
-            {[["Results", "#results"], ["How it works", "#architecture"], ["Demo", "/sightline.html"], ["Code", REPO]].map(([t, u]) => (
+            {[["Results", "#results"], ["How it works", "#architecture"], ["Demo", "/story.html"], ["Seven-beat version", "/sightline.html"], ["Code", REPO]].map(([t, u]) => (
               <a key={t} href={u} style={{ color: c.muted, textDecoration: "none" }}>{t}</a>
             ))}
           </nav>
@@ -63,15 +63,16 @@ export default function Page() {
             on a storm it never saw, and can&apos;t cheat because MongoDB locks the answers away.
           </p>
           <div style={{ display: "flex", gap: 12, marginTop: 26, flexWrap: "wrap" }}>
-            <a href="/sightline.html" style={{ background: c.accent, color: "#fff", padding: "14px 22px", borderRadius: 8, fontWeight: 600, textDecoration: "none", fontSize: 16 }}>Open the demo →</a>
+            <a href="/story.html" style={{ background: c.accent, color: "#fff", padding: "14px 22px", borderRadius: 8, fontWeight: 600, textDecoration: "none", fontSize: 16 }}>Open the demo →</a>
             {VIDEO_URL ? <a href={VIDEO_URL} style={{ ...card, color: c.ink, padding: "14px 22px", borderRadius: 8, textDecoration: "none" }}>Watch the 3-minute video</a> : null}
+            <a href="/story.html?view=arena" style={{ ...card, color: c.ink, padding: "14px 22px", borderRadius: 8, textDecoration: "none" }}>Live arena (recorded run)</a>
             <a href="#architecture" style={{ ...card, color: c.ink, padding: "14px 22px", borderRadius: 8, textDecoration: "none" }}>How it works</a>
             <a href={`${REPO}/blob/main/DEMO.md`} style={{ ...card, color: c.ink, padding: "14px 22px", borderRadius: 8, textDecoration: "none" }}>Code &amp; runbook</a>
           </div>
           <div style={{ display: "flex", gap: 8, marginTop: 14, flexWrap: "wrap", alignItems: "center" }}>
             <span style={{ color: c.muted, fontSize: 13 }}>Jump to a beat:</span>
             {BEATS.map((b, i) => (
-              <a key={b} href={`/sightline.html?beat=${i + 1}`} style={{ fontSize: 13, color: c.accent, background: c.accentSoft, padding: "4px 10px", borderRadius: 999, textDecoration: "none" }}>{i + 1} · {b}</a>
+              <a key={b} href={`/story.html?beat=${i + 1}`} style={{ fontSize: 13, color: c.accent, background: c.accentSoft, padding: "4px 10px", borderRadius: 999, textDecoration: "none" }}>{i + 1} · {b}</a>
             ))}
           </div>
         </section>
