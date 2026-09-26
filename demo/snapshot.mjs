@@ -1,5 +1,5 @@
 // Record the recorded run as the demo's offline fallback, plus the headline numbers for the start page.
-//   node demo/snapshot.mjs [https://sightline-dashboard.vercel.app] [live-1]
+//   node demo/snapshot.mjs [https://sightline-dashboard.vercel.app] [live-2]
 // Writes dashboard/public/snapshot.json (API path -> response) and dashboard/lib/headline.json.
 import fs from "node:fs";
 import path from "node:path";

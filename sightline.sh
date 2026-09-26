@@ -30,7 +30,7 @@ set -euo pipefail
 cd "$(dirname "$0")"
 PY=${PYTHON:-python3}
 API_URL=${SIGHTLINE_API:-https://sightline-jev.vercel.app}
-DEMO_RUN=${DEMO_RUN:-live-2}  # the run the judge demo is pinned to (publish records + builds it)
+DEMO_RUN=${DEMO_RUN:-${RUN:-live-2}}  # the run the judge demo is pinned to (publish records + builds it)
 say() { printf '\n\033[1m== %s\033[0m\n' "$*"; }
 
 cmd_setup() {

@@ -30,7 +30,7 @@ a storm it never saw, and can't cheat because MongoDB locks the answers away.
 data, and that sliver decides whether they're right. Six hours after a hurricane, the evidence contradicts
 itself: 911 calls filed at the wrong block, viral "verified" rumors, two agencies with two damage scales, and a
 utility feed that says "de-energized" for a whole neighborhood. Shown the 12 nearest reports, Jev maps three past
-storms at **56.7%** balanced accuracy and makes **265** false dispatches.
+storms at **59.5%** balanced accuracy and makes **210** false dispatches.
 
 **What we built.** Sightline searches for the context policy, not the prompt or the weights:
 
@@ -56,7 +56,7 @@ storms at **56.7%** balanced accuracy and makes **265** false dispatches.
   `denied (code 13): not authorized on jevly to find on assessments`.
 
 **Tech stack.** TypeSafe Jev (`jev-latest` on a TypeSafe key, or `typesafe/jev-1.13` via OpenRouter); a curator
-LLM (`z-ai/glm-5.2` via OpenRouter for `live-1`, a Claude subagent in the harness lab); MongoDB Atlas (geo queries,
+LLM (a blind Claude subagent for `live-2` and the harness lab; `z-ai/glm-5.2` via OpenRouter for `live-1`); MongoDB Atlas (geo queries,
 time-series `runs`, Vector Search over the `memory` notebook with `voyage-4` embeddings from the Atlas model API,
 collection-level custom roles); a Python harness; the Sightline design system; a Next.js dashboard on Vercel.
 
@@ -69,7 +69,7 @@ refused (the tripwire probe shows it live).
 
 ```mermaid
 flowchart LR
-  WORLD["Storm world<br/>8 simulated storms"] -- admin --> ATLAS
+  WORLD["Storm world<br/>9 simulated storms"] -- admin --> ATLAS
   subgraph ATLAS["MongoDB Atlas"]
     REP[("reports · blocks")]
     KEY[("assessments<br/>answer key")]
@@ -109,13 +109,13 @@ flowchart LR
 | One number decides everything | **Guardrails:** dev may not drop more than 1 point, and expected harm (5 × missed life-safety blocks + false dispatches) may not rise more than 5% |
 | The curator only hears "fail" | A **diff digest**: which blocks the change fixed and broke, by state, with before/after traces. Predictions are numeric and scored against the result |
 | No memory between stateless curator calls | A **vector lab notebook**: every generation writes a lesson (hypothesis, change, predicted vs actual, verdict) to Atlas `memory`, and the prompt retrieves the most relevant ones with `$vectorSearch`. A proposal close in meaning to a rejected lesson *and* making the same structural change is skipped unscored |
-| Every idea costs a full evaluation | A **screen** on a stratified dev sample rejects clearly bad ideas at a fraction of the calls |
-| Accepted rules pile up | A **prune pass** at the end removes each rule in turn and keeps only those that measurably help. The survivors are "what it learned" |
+| Every idea costs a full evaluation | A **screen** on a stratified dev sample rejects clearly bad ideas at a fraction of the calls (harness lab only) |
+| Accepted rules pile up | A **prune pass** at the end removes each rule in turn and keeps only those that measurably help. The survivors are "what it learned" (harness lab only) |
 
-`live-1` (below) ran on the simple loop in `driver.py`: one validation storm and a 1-point margin. The robust loop
-runs in the harness lab (`evolve.py`, branch `curator-inbox`) and was proven in
-[the comparison](#robust-loop-vs-naive-loop-vs-random). Porting it into `driver.py` for the next live run is the
-next step.
+The robust loop was first built and proven in the harness lab (`evolve.py`, branch `curator-inbox`; see
+[the comparison](#robust-loop-vs-naive-loop-vs-random)), then ported into `driver.py`: the bootstrap gate, the
+guardrails, the Atlas notebook and the fixed/broken digest. The screen and the prune pass stayed in the lab.
+`live-2` ran on the ported loop. `live-1` ran on the earlier simple loop: one validation storm and a 1-point margin.
 
 ### Storms and splits
 
@@ -125,7 +125,8 @@ simulated** and deterministic: `storm_run.py build` regenerates them byte-for-by
 | Split | Storms | Who sees what |
 |---|---|---|
 | dev | MIA1, HOU1, NOL1 (past storms) | Curator gets scores and 30 traces per generation |
-| val | NYC0 (a past NYC storm) | The gate; the curator only learns pass or fail |
+| val | NYC0 (a past NYC storm) | The gate, with val2; the curator learns the verdict, the pooled P(better) and which check failed, never traces |
+| val2 | HOU0 (a past Houston storm) | The gate's second validation storm (added for `live-2`; its own seed, so no other storm changed) |
 | heldout | NYC1 (tonight) | Scored once, at the end |
 | cities | MIA2, HOU2, NOL2 (next season) | Scored once with the frozen policy (beat 7) |
 
@@ -149,8 +150,8 @@ Sandy era). Each has a planted habit that a harness op can fix. The model sees o
 | `drone-pass` | NOAA / Civil Air Patrol imagery (RescueNet / FloodNet labels) | `Building-Flooded`, `Road-Blocked`, `Building-Total-Destruction` | about 30% coverage in flight strips; overhead imagery can't see power outages |
 | `utility-feed` | utility outage management | `energized`, `de-energized` by feeder | accurate but feeder-wide |
 
-Calibration after the real-vocabulary cutover (TypeSafe `jev-latest`): baseline 59.1% dev / 52.5% validation;
-builder reference 69.0% / 70.7%; dev false dispatches 207 → 58.
+Calibration on the real-vocabulary world in Atlas (TypeSafe `jev-latest`, stored as the dashboard's refs):
+baseline 59.5% dev / 50.3% validation; builder reference 69.7% / 69.7%; dev false dispatches 210 → 59.
 
 ### Harness ops
 
@@ -183,9 +184,10 @@ builder reference 69.0% / 70.7%; dev false dispatches 207 → 58.
 | `puzzle_draft/storm.py` | Storm generator: city outlines, damage rules, sources, coverage assertion |
 | `puzzle_draft/storm_harness.py` | Genome → the exact text Jev sees; leak guard; ops → Mongo pipeline compiler |
 | `puzzle_draft/storm_run.py` | `build`, `truth`, `load`, `preview`, `run` (scorer reads truth through the scorer login), `refs` |
-| `puzzle_draft/driver.py` | The automatic loop behind `live-1`: curator → validate → memory check → evaluate → gate → lineage |
-| `puzzle_draft/evolve.py`, `loopstats.py`, `notebook.py`, `mutate.py`, `abtest.py` | Harness lab (branch `curator-inbox`): the robust loop, bootstrap gate, Atlas vector notebook, random-mutation control, arm comparison |
-| `puzzle_draft/storm_curator_brief.md` | Everything the curator is told (nothing about the planted habits) |
+| `puzzle_draft/driver.py` | The automatic loop: curator → validate → memory check (notebook) → evaluate → robust gate → lineage. `--curator inbox` runs it with an external curator (e.g. a Claude subagent) |
+| `puzzle_draft/gatestats.py`, `notebook.py` | The robust gate's paired bootstrap and harm score; the Atlas vector lab notebook |
+| `puzzle_draft/evolve.py`, `loopstats.py`, `mutate.py`, `abtest.py` | Harness lab (branch `curator-inbox`): robust, naive and random-mutation arms, arm comparison on fresh storms |
+| `puzzle_draft/storm_curator_brief.md`, `storm_curator_brief_gate.md` | Everything the curator is told (nothing about the planted habits), plus how the gate judges a change |
 | `puzzle_draft/storm_genomes/` | `baseline.json` (12 nearest reports) and each run's best genome |
 | `puzzle_draft/storm_reference/` | Builder's hand-written ceiling. **Never shown to the curator** |
 | `puzzle_draft/db.py`, `mongo_setup.py`, `mongo_itest.py` | Logins, schema, roles, permission check, tripwire probe, integration test |
@@ -204,10 +206,10 @@ Everything goes through `./sightline.sh`:
 | `./sightline.sh preflight` | Check OpenRouter, Jev, the curator LLM and all four MongoDB logins (expect 12/12) |
 | `./sightline.sh db local` | Local Atlas container + schema + locked logins, then the permission check, probe and integration test |
 | `./sightline.sh db atlas` | Same on cloud Atlas (needs `MONGODB_URI_ADMIN` and `atlas auth login`) |
-| `./sightline.sh world` | Generate the 8 storms, render the truth maps, load everything into MongoDB |
+| `./sightline.sh world` | Generate the 9 storms, render the truth maps, load everything into MongoDB |
 | `./sightline.sh calibrate` | Baseline (floor) vs the builder's reference (ceiling) on real Jev; stores the refs |
 | `./sightline.sh loop --gens 8 --run live-2` | The automatic loop. Add `--resume` to continue a run, `--fake` for a free rehearsal |
-| `./sightline.sh final live-1` | Score tonight's storm and the cities **once** (see below) |
+| `./sightline.sh final <run>` | Score tonight's storm and the cities **once** (see below) |
 | `./sightline.sh publish` | Record the run (offline fallback + start-page numbers) and rebuild the stage demo |
 | `./sightline.sh dashboard` | Run the dashboard locally at http://localhost:3000 |
 | `./sightline.sh deploy` | Deploy the dashboard to Vercel |
@@ -216,8 +218,13 @@ Everything goes through `./sightline.sh`:
 
 **Setup (once).** Python 3.12 and Node 20 or newer. Run `./sightline.sh setup`, then fill in `.env`:
 
-- `OPENROUTER_API_KEY`: one key covers Jev and the curator. **Jev calls need purchased OpenRouter credit.**
-- `CURATOR_MODEL`: defaults to `z-ai/glm-5.2`.
+- `TYPESAFE_API_KEY`: Jev (`jev-latest`); preferred when set. Otherwise `OPENROUTER_API_KEY` covers Jev and the
+  curator, and **Jev calls need purchased OpenRouter credit.**
+- `CURATOR_MODEL`: the OpenRouter curator, defaults to `z-ai/glm-5.2`. `live-2` used `--curator inbox` instead: the
+  loop writes `gNN_prompt.md` to a folder outside the repo and exits; a fresh Claude subagent reads only that file
+  and writes `gNN_reply.json`; `--resume` scores it.
+- `MONGODB_MODEL_API_KEY`: Atlas model API key for the notebook's `voyage-4` embeddings (`--notebook local` works
+  without it).
 - `MONGODB_URI_ADMIN`, `MONGODB_URI_CURATOR`, `MONGODB_URI_SCORER`, `MONGODB_URI_DASHBOARD`: ask Kishore privately,
   or run `./sightline.sh db local` to create your own. Never commit them.
 
@@ -226,7 +233,7 @@ Everything goes through `./sightline.sh`:
 ```bash
 python puzzle_draft/storm_run.py preview NYC1 12 5            # exact text Jev sees under the baseline
 python puzzle_draft/storm_run.py preview NYC1 12 5 --genome puzzle_draft/storm_reference/ref_full.json
-open out/storm/truth_sheet.png                                  # the 8 storms (after `world`)
+open out/storm/truth_sheet.png                                  # the 9 storms (after `world`)
 ```
 
 **What a loop prints.** One line per generation: gen, status, dev, val, gate, tokens, seconds and the curator's
@@ -239,13 +246,15 @@ costs nothing but ignores glosses, so its numbers prove only that the pipeline r
 
 ## Score tonight's storm (once)
 
-Run this only once the final genome is chosen. It needs `OPENROUTER_API_KEY` (with credit) and
-`MONGODB_URI_SCORER`.
+Run this only once the final genome is chosen. It needs a Jev key and `MONGODB_URI_SCORER`.
 
 ```bash
-./sightline.sh final live-1       # baseline (gen 0) on NYC1, then live-1's best genome on NYC1 + MIA2/HOU2/NOL2
-./sightline.sh publish && ./sightline.sh deploy
+./sightline.sh final live-2       # baseline (gen 0) on NYC1, then live-2's best genome on NYC1 + MIA2/HOU2/NOL2
+RUN=live-2 ./sightline.sh publish && ./sightline.sh deploy
 ```
+
+`live-2` has been scored (gen 7); `live-1` was scored on the earlier world. The baseline is scored once per world
+version, and each run is shown next to the baseline from its own world.
 
 - It's about 3,800 Jev calls, roughly $0.15.
 - It writes `heldout_scores` plus the map rows the demo shows. It refuses to score a genome twice.
@@ -260,7 +269,7 @@ tripwire denial, both architecture diagrams and links to each beat. It's static,
 numbers come from `dashboard/lib/headline.json`, written by `./sightline.sh publish`.
 
 **Default demo:** https://sightline-jev.vercel.app/story.html is Brayden's click-through story with the
-**Story / Live arena** switch, fed by the recorded run `live-1` through `demo/src/live.js`:
+**Story / Live arena** switch, fed by the recorded run `live-2` through `demo/src/live.js`:
 
 - **Story tab** (Calm night, Storm hits, Generation 0, Fitness signal, Evolution, Replay, Any city): real maps,
   reports, the exact lines Jev read ("Now reading block…"), real misreads, the recorded lineage, tonight's
@@ -270,7 +279,7 @@ numbers come from `dashboard/lib/headline.json`, written by `./sightline.sh publ
   (`./sightline.sh loop`), not from the browser, so judges can't spend credit and the scorer login never sits on
   a public service.
 - `?beat=N` jumps to a step; `?view=arena&autostart=1` opens the arena already playing. Both pages are pinned to
-  `live-1` (`RUN=… bash demo/build_live.sh story` to pin another run).
+  `live-2` (`RUN=… bash demo/build_live.sh story` to pin another run; `?run=live-1` shows the earlier run).
 - The example-data version stays at `/story-example.html`, with a banner.
 
 **Seven-beat version:** https://sightline-jev.vercel.app/sightline.html is the same story as seven beats, fed by
@@ -298,7 +307,7 @@ the same recorded run:
 
 | Endpoint | Returns |
 |---|---|
-| `GET /api/state?run=live-1` | `run` {id, used, status, cost_usd, best_gen}; `refs` {baseline, ceiling: {dev, val}}; `gens` [{gen, parent, status, gate, dev, val, life_safety_found, false_dispatches, hypothesis, refuted_if, prediction, ops, pipeline, curator}]; `heldout`; `probe` |
+| `GET /api/state?run=live-2` | `run` {id, used, status, cost_usd, best_gen}; `refs` {baseline, ceiling: {dev, val}}; `gens` [{gen, parent, status, gate, dev, val, life_safety_found, false_dispatches, hypothesis, refuted_if, prediction, ops, pipeline, curator}]; `heldout`; `probe` |
 | `GET /api/map?run=&gen=&town=` | {w, h, mask, states, colors, split, accuracy, cells: [{x, y, pick, conf, correct, truth}]}. Truth appears only where the scorer published it; tonight is empty until scored |
 | `GET /api/block?run=&gen=&town=&x=&y=` | {lines: the exact text Jev saw, jev: {pick, conf, probs}, assessment, correct} |
 | `GET /api/reports?town=NYC1&until_hour=6` | The report feed in arrival order: [{hour, source, x, y, value, text, verified}] |
@@ -325,9 +334,9 @@ Set `LANGSMITH_API_KEY` and `LANGSMITH_TRACING=true` in `.env` (free Developer p
 - The first traced run is `live-traced`: https://sightline-jev.vercel.app/story.html?run=live-traced&view=arena
   It uses the new real-vocabulary storms, so its numbers aren't comparable with `live-1`.
 
-**Don't run `./sightline.sh world` before judging.** `main` now generates the real-vocabulary storms, and `world`
-reloads Atlas `reports` in that vocabulary, which would change the feed the pinned `live-1` demo shows. The answer
-key is byte-identical in both worlds.
+**Atlas holds the real-vocabulary world** (loaded for `live-2`, with the new validation storm HOU0). `live-1`'s
+recorded lineage, maps and scores are unchanged, but its report feed (`/api/reports`) now shows the new
+vocabulary. The answer key is byte-identical in both worlds.
 
 ## Results
 
@@ -401,7 +410,7 @@ New Orleans 66.2% balanced accuracy, with 38, 55 and 30 false dispatches.
 ## Robust loop vs naive loop vs random
 
 Does the robust loop matter, or would any loop do? Three arms, the same starting policy, the same Jev,
-8 generations each, two runs per arm:
+8 generations each (three runs for robust and naive, two for random):
 
 - **Robust:** everything in [the harness loop](#the-harness-loop). The curator is a blind Claude subagent that
   reads only its prompt file.
@@ -418,36 +427,39 @@ NYC9). Tonight's NYC1 was not touched.
 | Baseline | 61.1% (57.7–64.2) | | | |
 | **Robust 1** | **70.0%** (67.0–73.1) | +9.0, P 1.00 | 3 / 8 | 5.4k |
 | **Robust 2** | **74.9%** (72.4–77.2) | +13.8, P 1.00 | 2 / 8 | 8.4k |
+| **Robust 3** (harm cap +5%) | **74.2%** (71.4–76.7) | +13.1, P 1.00 | 2 / 8 | |
 | Naive 1 | 67.4% (64.1–70.6) | +6.3, P 0.99 | 5 / 8 | 21.6k |
 | Naive 2 | 62.9% (59.6–66.3) | +1.9, P 0.78 | 3 / 8 | 28.5k |
+| Naive 3 (clean rerun) | 60.4% (57.1–63.7) | −0.7 | 3 / 8 | |
 | Random 1 | 62.1% (58.9–65.4) | +1.1, P 0.69 | 2 / 8 | 13.8k |
 | Random 2 | 64.5% (61.3–67.7) | +3.5, P 0.96 | 1 / 8 | |
 
 - **Accuracy.** Compared block for block on the test storms, each robust run beats each naive and random run.
-  The smallest margin is Robust 1 over Naive 1: +2.7 points, P 0.99.
-- **Overfitting.** The naive rule kept a change that looked slightly better on dev (+0.4) but was probably worse
-  on validation (−2.5, P 0.13), and Naive 2 ended barely above baseline. The robust gate turned down the same kind
-  of change (dev +2.1, validation −0.1).
+  The smallest margin is Robust 1 over Naive 1: +2.7 points, P 0.99; Robust 3 beats Naive 3 by +13.8, P 1.00.
+- **Overfitting.** The naive rule kept changes that looked slightly better on dev but were probably worse on
+  validation (Naive 2: dev +0.4, validation −2.5, P 0.13; Naive 3: dev +1.1, validation −0.5, P 0.40). Naive 3,
+  run after the prompt bug below was fixed, ended *below* the untouched baseline. The robust gate turned down the
+  same kind of change (dev +2.1, validation −0.1).
 - **Cost.** The robust loop used 3–4× fewer new Jev calls than the naive loop: the screen and the notebook stop
   weak and repeated ideas before a full evaluation.
 - **What it learned** (rules that survived the prune pass): drop social posts; read the city-survey letters as
   damage types; treat a utility "line fault" as downed lines; narrow which neighbor reports Jev sees.
-- **Harm is not where it wins.** Expected harm on the test storms was 477–496 for the naive runs and 505–615 for
-  the robust runs (baseline 728). Every evolved policy cuts false dispatches sharply (298 → 21–135), but
-  life-safety recall dipped 1–3 points in the robust runs. The harm guardrail checks validation only, and that
-  didn't fully carry over.
+- **Harm.** Every evolved policy cuts false dispatches sharply (298 → 11–135; baseline expected harm 728). With
+  the first, strict guardrail the robust runs were slightly worse on harm than naive (505–615 vs 477–496), because
+  life-safety recall dipped 1–3 points. With the 5% cap, Robust 3 is level with Naive 3 (about 564 vs 576) while
+  scoring 13.8 points higher.
 
 **Caveats.** The lab ran on the world version from before the real-vocabulary cutover, so its numbers aren't
 comparable with `live-1`'s. Two harness bugs were found and fixed during the runs: the naive prompt mislabeled a
-rejected candidate's traces for three generations of Naive 2, and one robust generation was wrongly skipped as a
-repeat and then re-scored. The first harm guardrail (no rise at all) rejected a +5.9-point, P 1.00 validation win
-over two extra false dispatches; it now allows a 5% rise.
+rejected candidate's traces for three generations of Naive 2 (Naive 3 is the clean rerun), and one robust
+generation was wrongly skipped as a repeat and then re-scored. The first harm guardrail (no rise at all) rejected
+a +5.9-point, P 1.00 validation win over two extra false dispatches; it now allows a 5% rise (Robust 3).
 
 ## Status
 
 | Area | Status |
 |---|---|
-| Storm world: 8 city-shaped storms, 12 states, 8 sources, coverage assertion | Done |
+| Storm world: 9 city-shaped storms, 12 states, 8 sources, coverage assertion | Done; real-vocabulary world loaded in Atlas |
 | MongoDB Atlas: schema, three locked logins, tripwire probe, integration test | Done |
 | Harness + ops → pipeline compiler + scorer via the scorer login | Done |
 | Automatic loop with gate, leak guard, memory check, lineage | Done; `live-1` ran 13 generations |
@@ -456,7 +468,8 @@ over two extra false dispatches; it now allows a 5% rise.
 | One-command backend (`sightline.sh`) | Done |
 | Tonight's storm + cities scored once | Done: `live-2` NYC1 57.9% → 67.1%, false dispatches 93 → 29 (`live-1`: 62.7% → 67.0%, 131 → 72) |
 | Video | To record |
-| LangSmith traces, field-verified spot check | Not done (optional; cut first) |
+| LangSmith traces | Done (`live-traced`; `live-2` ran without a LangSmith key) |
+| Field-verified spot check | Not done (optional; cut first) |
 
 **Remaining, in order.**
 
@@ -470,7 +483,8 @@ over two extra false dispatches; it now allows a 5% rise.
   a hand-written ceiling only 63.8%, which left the curator nothing to find. Sparser, messier sources opened a
   15-point gap.
 - **Jev handles neighbor reports better than we expected.** Its real weak spots were unfamiliar scales and
-  "verified" viral posts. Filtering the rumors cut false dispatches from 265 to 62 in the builder policy.
+  "verified" viral posts. On the first world, filtering the rumors cut false dispatches from 265 to 62 in the
+  builder policy.
 - **Well-meant context can hurt.** A cautious gloss on the utility feed dropped `power_out` accuracy from 82% to
   71%. A neighbor flood summary pulled 238 intact blocks to "flooded".
 - **Some states are invisible without the right source.** Shelters and operating hospitals were right about 10%
@@ -481,8 +495,11 @@ over two extra false dispatches; it now allows a 5% rise.
   +0.8 on validation, just under the 1-point noise margin, and validation then stayed at 72.1% for ten
   generations. A fixed margin on one storm is the wrong tool: the bootstrap gate on two storms asks how likely a
   change is to help, not whether it cleared a line.
-- **Keeping whatever scores higher overfits.** The naive loop kept 8 of 16 changes and still finished below both
-  robust runs on fresh storms.
+- **Keeping whatever scores higher overfits.** The naive loop kept 11 of 24 changes and still finished below every
+  robust run on fresh storms; its clean rerun ended below the untouched baseline.
+- **A harder world makes a better demo.** On the real-vocabulary world the baseline starts hazier (50.3% on
+  validation), and `live-2` climbed in steps (social posts, then the coded sources, then neighbor noise, then
+  facility land use) to the builder's ceiling.
 - **A guardrail that is too strict costs twice.** It rejects the win, and then the notebook records the idea as a
   failure and blocks similar ones.
 - **Operations matter at hackathon speed.** Curator replies sometimes come back empty (hidden reasoning uses up
@@ -491,7 +508,7 @@ over two extra false dispatches; it now allows a 5% rise.
 
 **Still to try.**
 
-- Port the robust loop into `driver.py` and run `live-2` on the real-vocabulary world.
+- Port the lab's screen and prune pass into `driver.py`.
 - A deep-agent curator with a `validate_genome` tool and an in-memory file system only.
 - A per-account exclusion op.
 - Real data: NYC 311 open data and FEMA damage assessments.
