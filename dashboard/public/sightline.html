@@ -1922,6 +1922,7 @@ button:disabled { opacity: 0.4; cursor: default; }
       ${screen}
       <nav className="presenter" aria-label="Presenter controls">
         <div className="row gap10">
+          <a href="/" aria-label="Back to the Sightline home page" style=${{ fontSize: 13, color: 'var(--ink)', textDecoration: 'none', padding: '7px 12px', border: '1px solid var(--line)', borderRadius: 8, background: 'var(--surface-raised)', whiteSpace: 'nowrap' }}>← Home</a>
           ${!est.started ? html`<button className="dark" onClick=${evo.start}>Start evolution</button>` : html`<button className="ghost" onClick=${evo.reset}>Reset</button>`}
           <span className="xs row gap6">${est.started && !est.done ? html`<span className="live-dot"></span>` : null}<span className=${est.started ? '' : 'muted'}>${evoLabel}</span></span>
         </div>

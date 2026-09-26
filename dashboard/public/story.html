@@ -1951,9 +1951,12 @@ button:disabled { opacity: 0.4; cursor: default; }
       <div style=${{ display: story ? 'block' : 'none' }}><${Story} step=${step} onNext=${function () { go(step + 1); }} /></div>
       <div style=${{ display: story ? 'none' : 'block' }}><${Arena} onStatus=${setArena} /></div>
       <nav className="presenter" aria-label="Presenter controls">
+        <div className="row gap10">
+        <a href="/" aria-label="Back to the Sightline home page" style=${{ fontSize: 13, color: 'var(--ink)', textDecoration: 'none', padding: '7px 12px', border: '1px solid var(--line)', borderRadius: 8, background: 'var(--surface-raised)', whiteSpace: 'nowrap' }}>← Home</a>
         <div className="seg" role="group" aria-label="View">
           <button className=${story ? 'on' : ''} aria-pressed=${story} onClick=${function () { setView('story'); }}>Story</button>
           <button className=${!story ? 'on' : ''} aria-pressed=${!story} onClick=${function () { setView('arena'); }}>Live arena${arena === 'running' ? html` <span className="live-dot"></span>` : arena === 'done' ? ' ✓' : ''}</button>
+        </div>
         </div>
         <div className="steps" style=${{ opacity: story ? 1 : 0.5 }}>${NAMES.map(function (name, i) {
           var n = i + 1, on = story && n === step;
