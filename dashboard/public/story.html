@@ -1321,7 +1321,7 @@ button:disabled { opacity: 0.4; cursor: default; }
           // ---- generations (the recorded lineage) ----
           var bestVal = null, bestGen = null, prevOps = {};
           var gens = st.gens.filter(function (g) { return g.status !== 'running'; }).map(function (g) {
-            var out = { gen: g.gen, hyp: g.hypothesis || '', predicted: predicted(g.prediction), parent: bestGen, rule: null };
+            var out = { gen: g.gen, hyp: g.hypothesis || '', predicted: predicted(g.prediction), parent: bestGen, rule: null, trace: g.trace_url || null };
             if (g.dev == null) {
               return Object.assign(out, { status: 'skipped', memory: g.status === 'skipped',
                 note: g.status === 'skipped' ? (g.note || 'Too close to an idea that already failed. Not scored.')
@@ -1421,7 +1421,7 @@ button:disabled { opacity: 0.4; cursor: default; }
             F.runs = gens.map(function (G) {
               return { run: G.gen + 1, status: G.status === 'kept' || G.status === 'baseline' ? 'accepted' : G.status,
                        hyp: G.hyp || G.note || '', predicted: G.predicted, cells: G.cells || null, conf: G.conf || null,
-                       acc: G.val != null ? G.val : null, dev: G.dev, note: G.note };
+                       acc: G.val != null ? G.val : null, dev: G.dev, note: G.note, trace: G.trace || null };
             });
             var heldBy = {}; (st.heldout || []).forEach(function (x) { if (x.genome_id !== 'baseline') heldBy[x.town] = x; });
             var tonightHeld = heldBy.NYC1;
@@ -1900,6 +1900,7 @@ button:disabled { opacity: 0.4; cursor: default; }
           <div className="row gap40 end"><${Stat} label=${F.live ? 'Validation balanced accuracy, lineage' : 'Blocks right, lineage so far'} value=${pct(bestAcc)} size="xxl" color="var(--series-heldout)" /><${Stat} label="Since generation 0" value=${bestAcc != null && startAcc != null ? sgn(bestAcc - startAcc) + ' pts' : '—'} size="md" color="var(--good)" /></div>
           <div className="itercard">
             <div className="row between"><strong>${!st.started ? 'Ready' : st.done ? 'All ' + LAST + ' generations done' : 'Generation ' + (run.run - 1)}</strong><span className="muted xs">${st.started && !st.done && src.predicted != null ? 'Predicts +' + (src.predicted * 100).toFixed(0) + ' points' : ''}</span></div>
+            ${F.live && st.started && run.trace ? html`<a href=${run.trace} target="_blank" rel="noopener" className="xs" style=${{ color: 'var(--accent)' }}>Open this generation's LangSmith trace ↗</a>` : null}
             <span>${!st.started ? 'Press Start evolution. Each generation proposes one change, compiles it to a MongoDB pipeline, has Jev backtest every block, scores the map against the locked assessment, and joins the lineage only if the score rises.' : st.done ? 'The evolved harness is saved to the lineage and is what runs on the next live storm.' : src.hyp}</span>
             <div className="phases">${['Propose', 'Compile', 'Backtest', 'Score', 'Verdict'].map(function (name) {
               var names = plan.map(function (p) { return p[0]; });
