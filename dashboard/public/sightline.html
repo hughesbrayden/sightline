@@ -1379,6 +1379,12 @@ button:disabled { opacity: 0.4; cursor: default; }
               backCalm: back[0] ? back[0].cells.map(function (c) { return c === 'water' ? 'water' : 'intact'; }) : null,
               replayCta: heldNYC ? 'Replay tonight with the evolved harness' : 'Replay the NYC storm with the evolved harness',
               pitch: heldNYC ? null : 'We froze the model and let the harness evolve how it reads the world: gated, remembered, and next scored once on a storm it never saw.',
+              landBlocks: calm.filter(function (x) { return x !== 'water'; }).length,
+              sourceList: [['911 calls', 'call', 'some filed a block off'], ['311 tickets', 'ticket', ''], ['Drone passes', 'drone', '~30% coverage'],
+                ['Social posts', 'social', 'includes viral rumors'], ['Utility outage feed', 'utility', 'whole feeders at once'],
+                ['Fire dept. and city damage surveys', null, 'two different scales'], ['Pre-storm land-use map', null, 'stale']],
+              nightTag: heldNYC ? 'Tonight · live' : 'NYC storm · generation 0',
+              speedFact: 'One generation: 3,111 blocks across four storms in about a minute.',
               gens: gens, heldTown: heldTown, calm: calm, truth: truth, pins: pins, feed: feed, misreads: misreads,
               zero: Object.assign({ cells: zero.cells, conf: zero.conf, top: triage(zero, where) }, zs),
               evolved: Object.assign({ cells: evolved.cells, conf: evolved.conf, top: triage(evolved, where) }, es),
@@ -1585,13 +1591,13 @@ button:disabled { opacity: 0.4; cursor: default; }
 
   // ---------- beat 1: calm night ----------
   function Calm(props) {
-    var sources = [['911 calls', 'call', 'locations drift'], ['311 tickets', 'ticket', ''], ['Drone passes', 'drone', ''], ['Social posts', 'social', 'includes rumors'], ['Utility outage feed', 'utility', 'lat/long swapped'], ['Fire dept. and city damage surveys', null, 'two different scales']];
+    var sources = F.sourceList || [['911 calls', 'call', 'locations drift'], ['311 tickets', 'ticket', ''], ['Drone passes', 'drone', ''], ['Social posts', 'social', 'includes rumors'], ['Utility outage feed', 'utility', 'lat/long swapped'], ['Fire dept. and city damage surveys', null, 'two different scales']];
     return html`<div className="screen">
       <${Header} place=${NYC} clock="Tuesday 21:00" mode="live" modeLabel="Live · generation 0" />
       <div className="body">
         <${MapStage} resetKey="calm" cells=${F.calm} caption="Tuesday 21:00" meta="no reports" />
         <div className="panel">
-          <div className="intro"><h2>All quiet</h2><p className="muted lead">1,024 city blocks, mapped block by block. The storm is forecast to make landfall around 23:30.</p></div>
+          <div className="intro"><h2>All quiet</h2><p className="muted lead">${F.landBlocks ? F.landBlocks.toLocaleString('en-US') : '1,024'} city blocks, mapped block by block. The storm is forecast to make landfall around 23:30.</p></div>
           <div className="stats"><${Stat} label="Reports tonight" value="0" size="xl" /><${Stat} label="Blocks flagged" value="0" size="xl" /><${Stat} label="Harness deployed" value="Gen 0" size="xl" note="unevolved: nearest 12 reports" /></div>
           <div className="col gap10"><strong className="small">Sources connected</strong>
             ${sources.map(function (src) {
@@ -1751,7 +1757,7 @@ button:disabled { opacity: 0.4; cursor: default; }
           <div className="tonight-mini">
             <${S.DamageMap} cells=${F.zero.cells} confidence=${F.zero.conf} cellSize=${4} label="Tonight's generation 0 map" />
             <div className="col gap6">
-              <span className="tag tag-live"><span className="pill-dot"></span>Tonight · live</span>
+              <span className="tag tag-live"><span className="pill-dot"></span>${F.nightTag || 'Tonight · live'}</span>
               <span className="xs">Still on generation 0: <span className="mono">${pct(F.zero.acc)}</span> right. It waits here for the evolved harness.</span>
             </div>
           </div>
@@ -1831,7 +1837,7 @@ button:disabled { opacity: 0.4; cursor: default; }
           <div className="intro"><span className="tag tag-live">The policy is the product</span><h2 className="big">What it learned</h2>
             <p className="muted lead">${rules.length} rules the harness discovered on its own, each traced to the generation that found it. Jev never changed. Only these did.</p></div>
           <${S.PolicyRules} rules=${rules} />
-          <div className="facts"><span>The answers are locked to the scorer. The harness's own login was refused.</span><span>Confidence isn't a check. A few field-verified blocks are.</span><span>One 1,024-block map in about 15 seconds.</span></div>
+          <div className="facts"><span>The answers are locked to the scorer. The harness's own login was refused.</span><span>Confidence isn't a check. A few field-verified blocks are.</span><span>${F.speedFact || 'One 1,024-block map in about 15 seconds.'}</span></div>
           <p className="pitch">${F.pitch || "We froze the model and let the harness evolve how it reads the world: gated, remembered, and proven on a storm it never saw."}</p>
         </div>
         <div className="col gap12" style=${{ width: 420, flex: 'none' }}>

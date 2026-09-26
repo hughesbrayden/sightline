@@ -6,7 +6,7 @@ const REPO = "https://github.com/hughesbrayden/sightline";
 const VIDEO_URL: string | null = null;  // set once the recording is uploaded
 
 const pct = (v: number) => `${(v * 100).toFixed(1)}%`;
-const BEATS = ["Generation 0", "The fitness signal", "Evolution", "Replay", "What it learned"];
+const BEATS = ["Calm night", "Storm hits", "Generation 0", "Fitness signal", "Evolution", "Replay", "What it learned"];
 
 const c = {
   surface: "#f4f5f3", raised: "#ffffff", sunken: "#e9ece9", line: "#d8dcd9", ink: "#15191b", muted: "#59626a",

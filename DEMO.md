@@ -191,13 +191,24 @@ Anyone on the team can do this from `main`. It needs only `OPENROUTER_API_KEY` a
 python puzzle_draft/run.py run curator/genomes/baseline.json P1 --backend fake --private
 ```
 
+## For judges: one link
+
+**https://sightline-jev.vercel.app** is the start page: the pitch, the real numbers, the learned rules and the
+tripwire denial, plus **Open the demo** and one link per beat (1–7). The same site also answers at
+https://sightline-dashboard.vercel.app.
+
+- It works without the database: if the live API is unreachable, the demo loads `snapshot.json`, a recording of
+  the run, and looks the same. Refresh the recording with `node demo/snapshot.mjs` after new runs, then deploy.
+- The start page numbers come from `dashboard/lib/headline.json`, which the same script writes.
+- To test the fallback, open `/sightline.html?snapshot=1`.
+
 ## Stage demo: Brayden's Sightline design on live data
 
-**https://sightline-dashboard.vercel.app/sightline.html**: the five-beat Sightline demo (`demo/`), fed by the
+**https://sightline-jev.vercel.app/sightline.html**: the seven-beat Sightline demo (`demo/`), fed by the
 recorded run in MongoDB through `demo/src/live.js`. Maps, reports, misreads, the lineage, scores and the rules
 it learned are all real.
 
-- `?beat=1..5` jumps to a beat. `?scenario=1` shows the original illustrative story. `?run=<id>` picks a run.
+- `?beat=1..7` jumps to a beat. `?scenario=1` shows the original illustrative story. `?run=<id>` picks a run.
 - Until tonight's storm (NYC1) is scored, "tonight" is the past NYC validation storm (NYC0), and the page says so.
   After the `--final` scoring, it switches to NYC1 and fills in the "town it never saw" panel.
 - Engine states are drawn in the design system's palette: flooded_homes → homes flooded, collapsed → destroyed,
