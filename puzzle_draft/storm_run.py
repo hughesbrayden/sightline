@@ -200,6 +200,17 @@ def cmd_run(args) -> None:
     towns = [t for sp in split_names for t in storm.SPLITS[sp]]
     backend = get_backend(args.backend, use_cache=not args.no_cache)
     r = evaluate(genome, towns, backend, args.truth, args.workers)
+    if args.final:  # once-only scoring of tonight's storm and the other cities: record it (scorer login)
+        from db import connect
+        scorer = connect("scorer")
+        for t in towns:
+            s = r["towns"][t]
+            scorer.heldout_scores.insert_one({
+                "genome_id": genome["id"], "town": t, "split": next(k for k, v in storm.SPLITS.items() if t in v),
+                "score": s["balanced_accuracy"], "life_safety_recall": s["life_safety_recall"],
+                "life_safety_found": s["life_safety_found"], "life_safety_total": s["life_safety_total"],
+                "false_dispatches": s["false_dispatches"], "created": datetime.now(timezone.utc)})
+        print(f"  recorded {len(towns)} once-only scores in heldout_scores")
     if r["dev"]:
         st = r["stats"]
         print(f"  {genome['id']} DEV pooled: bal {r['dev']['balanced_accuracy']:.1%} | {st['calls']} calls "

@@ -6,6 +6,8 @@ Built for the Harness Engineering & Model Wrangling Hackathon (MongoDB NYC, Sep 
 
 ![Calibration: baseline to tuned context](docs/images/v4_calibration.png)
 
+**Hurricane demo (primary): see [DEMO.md](DEMO.md)** for the pitch, architecture, and how to run it.
+
 **Start with [COLLABORATION.md](COLLABORATION.md).** It covers the idea, current results, setup, commands and next steps.
 
 Quick start:
