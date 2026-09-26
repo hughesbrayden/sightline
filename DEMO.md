@@ -183,6 +183,19 @@ Anyone on the team can do this from `main`. It needs only `OPENROUTER_API_KEY` a
 python puzzle_draft/run.py run curator/genomes/baseline.json P1 --backend fake --private
 ```
 
+## Stage demo: Brayden's Sightline design on live data
+
+**https://sightline-dashboard.vercel.app/sightline.html**: the five-beat Sightline demo (`demo/`), fed by the
+recorded run in MongoDB through `demo/src/live.js`. Maps, reports, misreads, the lineage, scores and the rules
+it learned are all real.
+
+- `?beat=1..5` jumps to a beat. `?scenario=1` shows the original illustrative story. `?run=<id>` picks a run.
+- Until tonight's storm (NYC1) is scored, "tonight" is the past NYC validation storm (NYC0), and the page says so.
+  After the `--final` scoring, it switches to NYC1 and fills in the "town it never saw" panel.
+- Engine states are drawn in the design system's palette: flooded_homes → homes flooded, collapsed → destroyed,
+  roof_damage → wind or roof, power_out and downed_lines → power out, hospital_down → major damage.
+- Rebuild with `bash demo/build_live.sh` (writes `dashboard/public/sightline.html`), then deploy.
+
 ## Dashboard (`dashboard/`)
 
 A Next.js app that reads MongoDB with the **read-only `dashboard` login**. It can't read `assessments` and can't

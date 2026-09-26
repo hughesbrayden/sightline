@@ -5,6 +5,8 @@
   var S = window.Sightline, D = window.SightlineDemo;
   var F = D.flow();
   var GENS = F.gens;
+  var LAST = GENS.length - 1;  // generations after generation 0
+  var countOf = function (st) { return GENS.filter(function (G) { return G.status === st; }).length; };
   var LABEL = {};
   S.STATES.forEach(function (s) { LABEL[s.key] = s.label; });
   var CRIT = { home: 1, major: 1, destroyed: 1, fire: 1 };
@@ -112,7 +114,28 @@
   function BlockCard(props) {
     var i = props.index, r = Math.floor(i / 32), c = i % 32;
     var guess = props.cells[i], truth = props.truth ? props.truth[i] : null;
-    var rumor = F.misreads[0].i === i;
+    var rumor = !F.live && F.misreads[0].i === i;
+    var lv = useState(null), live = lv[0], setLive = lv[1];
+    useEffect(function () {  // live mode: fetch exactly what Jev saw for this block
+      if (!D.blockUrl || props.gen == null) return;
+      setLive(null);
+      fetch(D.blockUrl(props.gen, c, r)).then(function (x) { return x.json(); }).then(setLive).catch(function () {});
+    }, [i, props.gen]);
+    if (D.blockUrl && props.gen != null) {
+      var recs = live && live.lines ? live.lines.slice(2) : [];
+      var ok = live && live.correct;
+      return html`<div className="blockcard">
+        <div className="row between"><strong>Block ${r + 1}-${c + 1}</strong><span className="muted small push">${D.where(r, c)}</span>
+          <button className="x" aria-label="Close" onClick=${props.onClose}>×</button></div>
+        <div className="small">Jev: <strong>${live ? D.nice(live.jev.pick) : '…'}</strong> <span className="mono muted">${live ? live.jev.conf.toFixed(2) : ''}</span>
+          ${live && props.truth && live.assessment ? html` · <span style=${{ color: ok ? 'var(--good)' : 'var(--critical)' }}>${ok ? 'Assessment agrees' : 'Assessment: ' + D.nice(live.assessment)}</span>` : null}</div>
+        <span className="muted xs">What Jev saw (${recs.length} of 12 lines):</span>
+        <ul className="reports">${recs.map(function (ln, k) {
+          var m = /^- \[([^\]]+)\] (.*)$/.exec(ln) || [null, '', ln];
+          return html`<li key=${k}><span className="mono muted">${m[1]}</span><span>${m[2]}</span></li>`;
+        })}</ul>
+      </div>`;
+    }
     return html`<div className="blockcard">
       <div className="row between"><strong>Block ${r + 1}-${c + 1}</strong><span className="muted small push">${D.where(r, c)}</span>
         <button className="x" aria-label="Close" onClick=${props.onClose}>×</button></div>
@@ -144,7 +167,7 @@
         var pos = at(m.r, m.c);
         return html`<span key=${'m' + m.n} className=${'mark' + (m.tone ? ' mark-' + m.tone : '')} style=${{ left: pos.left, top: pos.top }}>${m.n}</span>`;
       })}
-      ${selected != null ? html`<${BlockCard} index=${selected} cells=${props.cells} conf=${props.conf} truth=${props.showTruth ? F.truth : null} onClose=${function () { setSelected(null); }} />` : null}
+      ${selected != null ? html`<${BlockCard} index=${selected} gen=${props.gen} cells=${props.cells} conf=${props.conf} truth=${props.showTruth ? F.truth : null} onClose=${function () { setSelected(null); }} />` : null}
       ${clickable && selected == null ? html`<span className="hint">Click any block to see what's behind it</span>` : null}
     </div>`;
   }
@@ -159,7 +182,7 @@
   }
 
   var legendStates = ['intact', 'minor', 'street', 'home', 'wind', 'major', 'destroyed', 'power'];
-  var NYC = 'New York · Lower Manhattan and the Brooklyn waterfront';
+  var NYC = F.place || 'New York · Lower Manhattan and the Brooklyn waterfront';
 
   // ---------- beat 1: generation 0 ----------
   function Gen0(props) {
@@ -172,7 +195,7 @@
       var feed = F.feed.slice(0, Math.min(F.feed.length, 1 + Math.floor(tick / 6)));
       map = { cells: F.calm, caption: 'Incoming reports', meta: n + ' on the map', pins: F.pins.slice(0, n) };
       panel = html`
-        <div className="intro"><h2>The storm hits. Reports flood in.</h2><p className="muted lead">${grow(10164)} reports so far from five kinds of sources. Some of them are wrong.</p></div>
+        <div className="intro"><h2>The storm hits. Reports flood in.</h2><p className="muted lead">${grow(F.counts.total || 10164)} reports so far from ${F.sources || 'five kinds of sources'}. Some of them are wrong.</p></div>
         <div className="counts">${[['911', 'call', F.counts.calls], ['311', 'ticket', F.counts.tickets], ['Drone', 'drone', F.counts.drone], ['Social', 'social', F.counts.social], ['Utility', 'utility', F.counts.utility]].map(function (c) {
           return html`<div className="stat" key=${c[0]}><span className="muted small row gap6"><span style=${pinStyle(c[1])}></span>${c[0]}</span><span className="mono num md">${grow(c[2])}</span></div>`;
         })}</div>
@@ -187,7 +210,7 @@
       var flagged = 0;
       for (var i = 0; i < mapped; i++) if (CRIT[F.zero.cells[i]]) flagged++;
       var doneMap = mapped >= 1024;
-      map = { cells: cells, conf: conf, caption: "Jev's map · generation 0", meta: doneMap ? 'the unevolved harness' : mapped + ' of 1,024 blocks', clickable: doneMap,
+      map = { gen: F.src ? F.src.zeroGen : null, cells: cells, conf: conf, caption: "Jev's map · generation 0", meta: doneMap ? 'the unevolved harness' : mapped + ' of 1,024 blocks', clickable: doneMap,
         marks: doneMap ? [{ n: 1, r: Math.floor(F.zero.top[0].i / 32), c: F.zero.top[0].i % 32, tone: 'accent' }] : [] };
       panel = html`
         <div className="intro"><h2>Generation 0 triages every block</h2><p className="muted lead">The unevolved harness: the 12 reports nearest each block, taken at face value. Jev is frozen; it never changes in this demo.</p></div>
@@ -211,7 +234,7 @@
 
   // ---------- beat 2: the fitness signal ----------
   function Fitness(props) {
-    var map = { cells: F.zero.cells, truth: F.truth, mode: 'diff', caption: 'Generation 0 vs the official assessment', meta: 'wrong blocks at full strength', clickable: true, showTruth: true,
+    var map = { gen: F.src ? F.src.zeroGen : null, cells: F.zero.cells, truth: F.truth, mode: 'diff', caption: 'Generation 0 vs the official assessment', meta: 'wrong blocks at full strength', clickable: true, showTruth: true,
       marks: F.misreads.map(function (m) { return { n: m.n, r: m.r, c: m.c }; }) };
     return html`<div className="screen">
       <${Header} place=${NYC} clock="Nine days later · assessment in" mode="review" modeLabel="Fitness signal" />
@@ -237,7 +260,7 @@
     var cur = GENS[st.gen], plan = planFor(st.gen);
     var bestIdx = bestOf(st.history), best = bestIdx == null ? null : GENS[bestIdx];
     var phaseName = st.started && !st.done ? plan[st.phase][0] : '';
-    var base = best ? best.cells : F.calm, baseConf = best ? best.conf : null;
+    var base = best ? best.cells : (F.backCalm || F.calm), baseConf = best ? best.conf : null;
     var cells = base, conf = baseConf, caption = best ? 'Backtest · best policy, generation ' + best.gen : 'Backtest · waiting to start', meta = best ? pct(best.dev) + ' on past storms' : '';
     var mapped = 0;
     if (phaseName === 'Backtest' && cur.cells) {
@@ -256,13 +279,13 @@
     var verdict = !showVerdict ? null : shown.status === 'baseline' ? { t: 'Baseline', c: 'var(--ink)', bg: 'var(--surface-sunken)' }
       : shown.status === 'kept' ? { t: 'Kept', c: 'var(--good)', bg: 'var(--good-soft)' }
       : shown.status === 'rejected' ? { t: 'Rejected', c: 'var(--critical)', bg: 'var(--critical-soft)' }
-      : { t: 'Skipped by memory', c: 'var(--ink-muted)', bg: 'var(--surface-raised)' };
+      : { t: shown.memory === false ? 'Not scored' : 'Skipped by memory', c: 'var(--ink-muted)', bg: 'var(--surface-raised)' };
     var why = !showVerdict ? '' : st.done ? 'The evolved policy is saved to the lineage.'
       : shown.status === 'baseline' ? 'Starting point for selection.'
       : shown.status === 'kept' ? 'Validation rose ' + Math.abs(shown.valDelta * 100).toFixed(1) + ' points. It joins the lineage.'
       : shown.status === 'rejected' ? 'The backtest rose, but validation fell ' + Math.abs(shown.valDelta * 100).toFixed(1) + ' points. The gate throws it out.'
       : shown.note;
-    var status = !st.started ? '' : st.done ? 'Evolution finished: 8 generations.' : {
+    var status = !st.started ? '' : st.done ? 'Evolution finished: ' + LAST + ' generations.' : {
       Propose: 'Reading the last generation’s mistakes and writing one change…',
       Compile: 'Compiling the policy into a MongoDB aggregation pipeline…',
       Backtest: 'Backtest on past storms: Jev is mapping ' + mapped.toLocaleString('en-US') + ' of 1,024 blocks…',
@@ -274,7 +297,7 @@
     var lineage = st.history.map(function (g) {
       var G = GENS[g];
       return { gen: g, parent: G.parent, status: G.status,
-        label: G.status === 'skipped' ? 'memory' : G.status === 'rejected' ? pts(G.valDelta) + ' val' : (G.val * 100).toFixed(1) };
+        label: G.status === 'skipped' ? (G.memory === false ? 'invalid' : 'memory') : G.status === 'rejected' ? pts(G.valDelta) + ' val' : (G.val * 100).toFixed(1) };
     });
     var bestLine = [], tries = [], run = null;
     GENS.forEach(function (G, g) {
@@ -299,7 +322,7 @@
     });
 
     return html`<div className="screen">
-      <${Header} place="New York · past storms (backtest) and a validation town, assessments locked to the scorer" clock=${st.started ? 'Generation ' + cur.gen + ' of 7' : 'Ready'} mode="training" modeLabel=${!st.started ? 'Evolution ready' : st.done ? 'Evolution done' : 'Evolution live'} />
+      <${Header} place=${F.backtestPlace || 'New York · past storms (backtest) and a validation town, assessments locked to the scorer'} clock=${st.started ? 'Generation ' + cur.gen + ' of ' + LAST : 'Ready'} mode="training" modeLabel=${!st.started ? 'Evolution ready' : st.done ? 'Evolution done' : 'Evolution live'} />
       <div className="body gap48">
         <div className="col gap10">
           <${S.DamageMap} cells=${cells} confidence=${conf} cellSize=${14} caption=${caption} meta=${meta} label="Backtest map" />
@@ -316,7 +339,7 @@
               </div>` : html`
               <div className="row between"><strong className="h2">${st.done ? 'Generation ' + shown.gen + ' · the evolved harness' : 'Generation ' + cur.gen}</strong>
                 ${verdict ? html`<span className="verdict" style=${{ color: verdict.c, background: verdict.bg }}>${verdict.t}</span>` : html`<span className="verdict muted">${phaseName}…</span>`}</div>
-              <span className="hyp">${st.done ? 'Kept changes: ' + GENS.filter(function (G) { return G.status === 'kept'; }).length + ' · rejected: 1 · skipped by memory: 1' : cur.hyp}</span>
+              <span className="hyp">${st.done ? 'Kept changes: ' + countOf('kept') + ' · rejected: ' + countOf('rejected') + ' · not scored: ' + countOf('skipped') : cur.hyp}</span>
               <div className="genstats">
                 <${Stat} label="Prediction" value=${!st.done && cur.predicted != null ? '+' + (cur.predicted * 100).toFixed(0) : '—'} size="md" note="points on validation" />
                 <${Stat} label="Fitness · backtest" value=${showResult && shown.dev != null ? pct(shown.dev) : '—'} size="md" note="past storms" />
@@ -327,11 +350,11 @@
           </div>
           <div className="col gap6">
             <div className="row between"><strong className="small">Lineage</strong><span className="xs muted">Kept changes stack on the line. Rejected and remembered ideas hang off it.</span></div>
-            <${S.LineageTree} gens=${lineage} total=${8} current=${st.started && !st.done ? cur.gen : null} width=${800} height=${150} label="Lineage of the harness" />
+            <${S.LineageTree} gens=${lineage} total=${GENS.length} current=${st.started && !st.done ? cur.gen : null} width=${800} height=${150} label="Lineage of the harness" />
           </div>
           <div className="row gap24 end">
             <${S.ScoreCurve} train=${bestLine} heldout=${tries} xLabels=${GENS.map(function (G) { return 'Gen ' + G.gen; })} trainLabel="Lineage, validation" heldoutLabel="Each proposal" min=${0.2} max=${1} width=${480} height=${150} label="Validation score by generation" />
-            <div className="push"><${Cta} label="Replay tonight with the evolved harness" onClick=${props.onNext} /></div>
+            <div className="push"><${Cta} label=${F.replayCta || "Replay tonight with the evolved harness"} onClick=${props.onNext} /></div>
           </div>
         </div>
       </div>
@@ -340,23 +363,23 @@
 
   // ---------- beat 4: replay ----------
   function Replay(props) {
-    var map = { cells: F.evolved.cells, conf: F.evolved.conf, caption: "Jev's map · evolved harness", meta: 'same night, replayed', clickable: true, showTruth: true,
+    var map = { gen: F.src ? F.src.bestGen : null, cells: F.evolved.cells, conf: F.evolved.conf, caption: "Jev's map · evolved harness" + (F.live ? ', generation ' + F.bestGen : ''), meta: 'same night, replayed', clickable: true, showTruth: true,
       marks: F.misreads.map(function (m) { return { n: m.n, r: m.r, c: m.c, tone: 'good' }; }) };
     return html`<div className="screen">
       <${Header} place=${NYC} clock="Replay of Tuesday night" mode="review" modeLabel="Adaptation proven" />
       <div className="body">
         <${MapStage} resetKey="replay" ...${map} />
         <div className="panel">
-          <div className="intro"><h2>The evolved harness, on the same night</h2><p className="muted lead">Same reports. Same frozen Jev. Only the harness changed. Tonight's storm is scored once, never trained on.</p></div>
+          <div className="intro"><h2>The evolved harness, on the same night</h2><p className="muted lead">${F.replayNote || "Same reports. Same frozen Jev. Only the harness changed. Tonight's storm is scored once, never trained on."}</p></div>
           <div className="compare">
             <div className="crow head"><span></span><span>Generation 0</span><span>Evolved</span></div>
             ${[['Blocks right', pct(F.zero.acc), pct(F.evolved.acc)], ['Rescue-critical blocks found (of ' + F.zero.critTotal + ')', F.zero.critFound, F.evolved.critFound], ['Crews sent to the wrong block', F.zero.falseAlarms, F.evolved.falseAlarms]].map(function (c) {
               return html`<div className="crow" key=${c[0]}><span>${c[0]}</span><span className="mono before">${c[1]}</span><span className="mono after">${c[2]}</span></div>`;
             })}
           </div>
-          <div className="col gap10"><strong className="small">Generation 0's four misreads, now handled</strong>
+          <div className="col gap10"><strong className="small">${F.live ? 'Generation 0\'s ' + F.misreads.length + ' most confident misreads: ' + F.misreads.filter(function (m) { return m.fixedBy != null; }).length + ' now handled' : "Generation 0's four misreads, now handled"}</strong>
             ${F.misreads.map(function (m) {
-              return html`<div className="misread" key=${m.n}><span className="mark static good">${m.n}</span><span className="small">${m.title}: fixed by generation ${FIXED_BY[m.n]}.</span></div>`;
+              return html`<div className="misread" key=${m.n}><span className="mark static good">${m.n}</span><span className="small">${m.title}: ${F.live ? (m.fixedBy != null ? 'fixed by the evolved harness (generation ' + m.fixedBy + ').' : 'still wrong.') : 'fixed by generation ' + FIXED_BY[m.n] + '.'}</span></div>`;
             })}
           </div>
           <div className="panel-foot"><${Cta} label="What did it learn?" onClick=${props.onNext} /><${S.DamageLegend} states=${legendStates} /></div>
@@ -367,24 +390,26 @@
 
   // ---------- beat 5: what it learned ----------
   function Learned() {
-    var rules = GENS.filter(function (G) { return G.status === 'kept' && G.rule; }).map(function (G) { return { text: G.rule, gen: G.gen }; });
+    var rules = [];
+    GENS.forEach(function (G) { if (G.status === 'kept') (G.rules || (G.rule ? [G.rule] : [])).forEach(function (t) { rules.push({ text: t, gen: G.gen }); }); });
     var town = F.heldTown;
     return html`<div className="screen">
-      <${Header} place="The evolved harness" clock="After 7 generations" mode="review" modeLabel="What it learned" />
+      <${Header} place="The evolved harness" clock=${'After ' + LAST + ' generations'} mode="review" modeLabel="What it learned" />
       <div className="body gap64">
         <div className="col gap20 grow">
           <div className="intro"><span className="tag tag-live">The policy is the product</span><h2 className="big">What it learned</h2>
-            <p className="muted lead">Five rules the harness discovered on its own, each traced to the generation that found it. Jev never changed. Only these did.</p></div>
+            <p className="muted lead">${rules.length} rules the harness discovered on its own, each traced to the generation that found it. Jev never changed. Only these did.</p></div>
           <${S.PolicyRules} rules=${rules} />
-          <p className="pitch">We froze the model and let the harness evolve how it reads the world: gated, remembered, and proven on a storm it never saw.</p>
+          <p className="pitch">${F.pitch || "We froze the model and let the harness evolve how it reads the world: gated, remembered, and proven on a storm it never saw."}</p>
         </div>
         <div className="col gap12" style=${{ width: 420, flex: 'none' }}>
           <span className="tag tag-train">A town it never saw</span>
+          ${town ? html`
           <${S.DamageMap} cells=${town.cells} confidence=${town.conf} cellSize=${12} caption=${town.name + ' · blind'} meta="scored once" label=${town.name + ' damage map'} />
           <div className="row gap24">
             <${Stat} label="Blocks right" value=${pct(town.acc)} size="xl" color="var(--good)" />
             <${Stat} label="Rescue-critical found" value=${town.critFound} unit=${'/' + town.critTotal} size="xl" />
-          </div>
+          </div>` : html`<div className="whygate"><strong className="xs">Pending</strong><span className="xs">Miami, Houston and New Orleans next season are scored once with the frozen policy, after the final run.</span></div>`}
           <span className="xs muted">Same harness, its own lineage. Scored once against the official assessment; never used for selection.</span>
         </div>
       </div>
@@ -396,7 +421,7 @@
 
   function App() {
     var evo = useEvolution();
-    var s1 = useState(1), step = s1[0], setStep = s1[1];
+    var s1 = useState(Math.min(5, Math.max(1, Number(new URLSearchParams(location.search).get('beat')) || 1))), step = s1[0], setStep = s1[1];  // ?beat=N deep link
     var go = function (n) { setStep(Math.max(1, Math.min(BEATS.length, n))); };
     var stepRef = useRef(step); stepRef.current = step;
     useEffect(function () {
@@ -415,7 +440,7 @@
       : step === 4 ? html`<${Replay} onNext=${next} />`
       : html`<${Learned} />`;
     var est = evo.st;
-    var evoLabel = !est.started ? 'Evolution not started' : est.done ? 'Evolution done · 7 generations' : 'Evolving · generation ' + est.gen + ' of 7';
+    var evoLabel = !est.started ? 'Evolution not started' : est.done ? 'Evolution done · ' + LAST + ' generations' : (F.live ? 'Replaying recorded run · generation ' : 'Evolving · generation ') + est.gen + ' of ' + LAST;
     return html`<div className="app">
       ${screen}
       <nav className="presenter" aria-label="Presenter controls">
