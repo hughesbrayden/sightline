@@ -7,9 +7,12 @@ export async function GET(req: Request) {
   const q = new URL(req.url).searchParams;
   const d = await db();
   const run = await resolveRun(d, q.get("run"));
-  const [gen, x, y] = ["gen", "x", "y"].map((k) => Number(q.get(k)));
   const town = q.get("town");
-  if (!run || !town || [gen, x, y].some(Number.isNaN)) return json({ error: "need run, gen, town, x, y" }, 400);
+  const raw = ["gen", "x", "y"].map((k) => q.get(k));
+  const [gen, x, y] = raw.map((v) => (v === null || v.trim() === "" ? NaN : Number(v)));  // Number(null) is 0
+  if (!run || !town || [gen, x, y].some((v) => !Number.isInteger(v))) {
+    return json({ error: "need run, gen, town, x, y (integers)" }, 400);
+  }
   const doc = await d.collection("runs").findOne(
     { "meta.run": run, "meta.gen": gen, "meta.town": town, x, y }, { projection: { _id: 0 } });
   if (!doc) return json({ error: "no such block in this run" }, 404);
