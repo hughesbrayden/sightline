@@ -1,33 +1,33 @@
 {
-  "run": "live-1",
+  "run": "live-2",
   "night": {
     "gen0": {
-      "acc": 0.6073446327683616,
-      "crit": 70,
+      "acc": 0.6242937853107344,
+      "crit": 77,
       "critTotal": 101,
-      "wrongCrews": 131
+      "wrongCrews": 93
     },
     "evolved": {
-      "acc": 0.6652542372881356,
-      "crit": 71,
+      "acc": 0.7810734463276836,
+      "crit": 83,
       "critTotal": 101,
-      "wrongCrews": 72
+      "wrongCrews": 29
     }
   },
-  "recorded": "2026-09-26T21:02:56.624Z",
-  "generations": 13,
-  "kept": 2,
-  "rejected": 9,
-  "notScored": 2,
+  "recorded": "2026-09-26T22:15:45.281Z",
+  "generations": 8,
+  "kept": 4,
+  "rejected": 4,
+  "notScored": 0,
   "val": {
-    "from": 0.6458580176572891,
-    "to": 0.7210980688824079,
-    "ceiling": 0.7655660647677612
+    "from": 0.5029005928850536,
+    "to": 0.6907247595719124,
+    "ceiling": 0.6968145958430325
   },
   "dev": {
-    "from": 0.5674753108676109,
-    "to": 0.6108283311777227,
-    "ceiling": 0.7154391206347018
+    "from": 0.5945500565664701,
+    "to": 0.6927939422801975,
+    "ceiling": 0.6969254729547701
   },
   "nightName": "NYC1",
   "rules": [
@@ -36,8 +36,20 @@
       "text": "Ignore social-post reports."
     },
     {
-      "gen": 3,
-      "text": "Summarize reports from blocks within 2 blocks."
+      "gen": 2,
+      "text": "Translate fire-dept codes before Jev reads them (111, 363, 444…)."
+    },
+    {
+      "gen": 2,
+      "text": "Translate city-survey codes before Jev reads them (Affected, Minor, Major…)."
+    },
+    {
+      "gen": 4,
+      "text": "List 911-call and 311 and city-survey and fire-dept and drone-pass and utility-feed reports from blocks within 2 blocks."
+    },
+    {
+      "gen": 7,
+      "text": "Translate pre-storm-map codes before Jev reads them (08 Public Facilities & Institutions (hospital), 08 Public Facilities & Institutions (school, designated evacuation center))."
     }
   ],
   "probe": "not authorized on jevly to find on assessments",
@@ -45,58 +57,63 @@
     {
       "genome_id": "baseline",
       "town": "NYC1",
+      "world": "v3-real-vocab",
       "split": "heldout",
-      "score": 0.6269106754546409,
-      "life_safety_recall": 0.693069306930693,
-      "life_safety_found": 70,
+      "score": 0.5794681505627475,
+      "life_safety_recall": 0.7623762376237624,
+      "life_safety_found": 77,
       "life_safety_total": 101,
-      "false_dispatches": 131,
-      "created": "2026-09-26T20:11:09.476Z"
+      "false_dispatches": 93,
+      "created": "2026-09-26T22:07:48.743Z"
     },
     {
-      "genome_id": "live-1_g03",
+      "genome_id": "live-2_g07",
       "town": "NYC1",
+      "world": "v3-real-vocab",
       "split": "heldout",
-      "score": 0.6695811490066083,
-      "life_safety_recall": 0.7029702970297029,
-      "life_safety_found": 71,
+      "score": 0.6710483167891738,
+      "life_safety_recall": 0.8217821782178217,
+      "life_safety_found": 83,
       "life_safety_total": 101,
-      "false_dispatches": 72,
-      "created": "2026-09-26T20:12:00.681Z"
+      "false_dispatches": 29,
+      "created": "2026-09-26T22:09:07.296Z"
     },
     {
-      "genome_id": "live-1_g03",
+      "genome_id": "live-2_g07",
       "town": "MIA2",
+      "world": "v3-real-vocab",
       "split": "cities",
-      "score": 0.685782464801102,
-      "life_safety_recall": 0.8070175438596491,
-      "life_safety_found": 92,
+      "score": 0.7757682769419505,
+      "life_safety_recall": 0.9035087719298246,
+      "life_safety_found": 103,
       "life_safety_total": 114,
-      "false_dispatches": 38,
-      "created": "2026-09-26T20:12:00.767Z"
+      "false_dispatches": 21,
+      "created": "2026-09-26T22:09:07.379Z"
     },
     {
-      "genome_id": "live-1_g03",
+      "genome_id": "live-2_g07",
       "town": "HOU2",
+      "world": "v3-real-vocab",
       "split": "cities",
-      "score": 0.6607933726319746,
-      "life_safety_recall": 0.6324324324324324,
-      "life_safety_found": 117,
+      "score": 0.6734266970485546,
+      "life_safety_recall": 0.8432432432432433,
+      "life_safety_found": 156,
       "life_safety_total": 185,
-      "false_dispatches": 55,
-      "created": "2026-09-26T20:12:00.854Z"
+      "false_dispatches": 44,
+      "created": "2026-09-26T22:09:07.464Z"
     },
     {
-      "genome_id": "live-1_g03",
+      "genome_id": "live-2_g07",
       "town": "NOL2",
+      "world": "v3-real-vocab",
       "split": "cities",
-      "score": 0.6622069981893105,
-      "life_safety_recall": 0.609375,
-      "life_safety_found": 39,
+      "score": 0.625430324430398,
+      "life_safety_recall": 0.75,
+      "life_safety_found": 48,
       "life_safety_total": 64,
-      "false_dispatches": 30,
-      "created": "2026-09-26T20:12:00.943Z"
+      "false_dispatches": 14,
+      "created": "2026-09-26T22:09:07.548Z"
     }
   ],
-  "curatorCost": 0.18209290160000002
+  "curatorCost": 0
 }

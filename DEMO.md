@@ -331,6 +331,33 @@ key is byte-identical in both worlds.
 
 ## Results
 
+### `live-2`: the robust loop on the real-vocabulary world (the recorded run the demo shows)
+
+Real Jev (`jev-latest`), a blind Claude curator (a fresh subagent per generation that reads only its prompt), and
+the robust gate: paired bootstrap over two validation storms (NYC0 + HOU0), P(better) ≥ 0.90, dev may not drop
+more than 1 point, harm may not rise more than 5%. Lessons go to the Atlas `memory` collection and come back via
+`$vectorSearch`.
+
+| Gen | Status | Dev | Val (NYC0) | P(better) | Harm Δ | Curator's hypothesis (abridged) |
+|---|---|---|---|---|---|---|
+| 0 | baseline | 59.5% | 50.3% | – | – | No harness: the 12 reports nearest the block |
+| 1 | **kept** | 59.8% | 55.5% | 1.00 | −136 | Social-post hashtags taken as ground truth |
+| 2 | **kept** | 63.9% | 63.2% | 1.00 | −75 | Jev can't decode the coded sources (NFIRS fire codes, FEMA damage levels) |
+| 3 | rejected | 58.9% | 60.8% | 0.04 | +104 | Relative format so Jev can tell its own block from neighbors |
+| 4 | **kept** | 64.8% | 67.0% | 1.00 | −2 | Neighbors' pre-storm-map lines crowd out post-storm evidence |
+| 5 | rejected | 64.4% | 66.2% | 0.03 | +98 | Mark 911 collapse / water-rescue calls as unverified |
+| 6 | rejected | 65.7% | 64.2% | 0.02 | +70 | Summarize neighbor utility-feed lines as a profile |
+| 7 | **kept** | **69.3%** | **69.1%** | 1.00 | −1 | The block's own facility land use (hospital, school shelter) goes unread |
+| 8 | rejected | 67.2% | 62.8% | 0.00 | +10 | Hospitals run on backup power |
+
+Builder's hand-written ceiling on this world: dev 69.7%, validation 69.7%. The evolved policy reached it.
+
+**Tonight's storm (NYC1): held out, scored once:** balanced accuracy **57.9% → 67.1%**, false dispatches
+**93 → 29**, rescue-critical blocks found **77 → 83 of 101**. **Next season's cities** (frozen gen 7, scored
+once): Miami 77.6%, Houston 67.3%, New Orleans 62.5%.
+
+### `live-1`: the simple loop on the first world (kept for comparison)
+
 **Calibration on real Jev** (before any curator ran):
 
 | Policy | Dev (pooled) | Validation (NYC0) | False dispatches (dev) |
@@ -424,17 +451,18 @@ over two extra false dispatches; it now allows a 5% rise.
 | MongoDB Atlas: schema, three locked logins, tripwire probe, integration test | Done |
 | Harness + ops → pipeline compiler + scorer via the scorer login | Done |
 | Automatic loop with gate, leak guard, memory check, lineage | Done; `live-1` ran 13 generations |
-| Robust loop: bootstrap gate on 2 validation storms, harm guardrail, Atlas vector notebook, diff digest, prune | Done in the harness lab; beat naive and random on fresh storms. Not yet in `driver.py` |
+| Robust loop: bootstrap gate on 2 validation storms, harm guardrail, Atlas vector notebook, diff digest | Done in `driver.py`; `live-2` ran 8 generations on it (the lab's prune pass is not ported) |
 | Dashboard API (39/39 checks), start page, stage demo on live data, offline fallback | Done, live at https://sightline-jev.vercel.app |
 | One-command backend (`sightline.sh`) | Done |
-| Tonight's storm + cities scored once | Done: NYC1 62.7% → 67.0%, false dispatches 131 → 72 |
+| Tonight's storm + cities scored once | Done: `live-2` NYC1 57.9% → 67.1%, false dispatches 93 → 29 (`live-1`: 62.7% → 67.0%, 131 → 72) |
 | Video | To record |
 | LangSmith traces, field-verified spot check | Not done (optional; cut first) |
 
 **Remaining, in order.**
 
-1. Record the video; add its link to `VIDEO_URL` in `dashboard/app/page.tsx`; redeploy.
-2. Submit.
+1. Deploy the `live-2` build: `cd dashboard && vercel deploy --prod --yes` (needs a logged-in Vercel CLI).
+2. Record the video; add its link to `VIDEO_URL` in `dashboard/app/page.tsx`; redeploy.
+3. Submit.
 
 ## What we learned
 

@@ -1,0 +1,65 @@
+{
+  "id": "live-2_g07",
+  "ops": [
+    {
+      "op": "exclude_source",
+      "source": "social-post"
+    },
+    {
+      "op": "gloss_value",
+      "source": "fire-dept",
+      "map": {
+        "111": "NFIRS: building fire",
+        "363": "NFIRS: swift water / flood rescue",
+        "444": "NFIRS: power line down",
+        "461": "NFIRS: building or structure weakened or collapsed",
+        "813": "NFIRS: wind storm / hurricane assessment, no fire"
+      }
+    },
+    {
+      "op": "gloss_value",
+      "source": "city-survey",
+      "map": {
+        "Affected": "FEMA PDA: cosmetic damage only, home habitable",
+        "Minor": "FEMA PDA: repairable non-structural damage such as roof shingles or siding, building standing and habitable",
+        "Major": "FEMA PDA: structural damage, building standing but needs extensive repair",
+        "Destroyed": "FEMA PDA: total loss, structure collapsed or beyond repair",
+        "Inaccessible": "FEMA PDA: inspector could not reach the site, damage not assessed"
+      }
+    },
+    {
+      "op": "gloss_value",
+      "source": "pre-storm-map",
+      "map": {
+        "08 Public Facilities & Institutions (hospital)": "a hospital occupies this block; its post-storm state is whether the hospital is operating (hospital_ok) or out of service from its own power loss, flooding or structural damage (hospital_down); calls about nearby houses do not by themselves describe the hospital",
+        "08 Public Facilities & Institutions (school, designated evacuation center)": "a school designated as a hurricane evacuation center; after landfall such sites are normally opened as public shelters (shelter_open) unless the block's own reports show the building damaged or flooded"
+      }
+    },
+    {
+      "op": "include_own",
+      "k": 12
+    },
+    {
+      "op": "include_related",
+      "radius": 2,
+      "sources": [
+        "911-call",
+        "311",
+        "city-survey",
+        "fire-dept",
+        "drone-pass",
+        "utility-feed"
+      ],
+      "show": "raw"
+    }
+  ],
+  "format": "raw",
+  "rationale": {
+    "hypothesis": "Jev does not treat the block's own PLUTO '08 Public Facilities & Institutions' land use as the thing the block's status is about, so hospital_ok (17%) and shelter_open (38%) blocks get labeled from whatever incident reports sit nearby (e.g. a hospital_ok block with a 911 fire call and a de-energized feed is called fire at 0.97). Each of these rare states weighs 1/12 of balanced accuracy. Glossing the two facility land-use values to say that on such a block the key question is the facility's operating status (hospital operating vs out of service; school/evacuation center opened as a shelter) should let Jev pick the facility states when the block's own evidence does not show the facility failing.",
+    "refuted_if": "hospital_ok and shelter_open together gain fewer than 4 correct blocks, or hospital_down drops by more than 2 blocks, or balanced accuracy rises by less than 0.5 points, or false dispatches rise by more than 5."
+  },
+  "prediction": {
+    "dev_balanced_accuracy_change": 0.02,
+    "states": "hospital_ok should rise from ~17% toward 40-50% and shelter_open from ~38% toward 55-65%, since the block's own facility land use will now read as the subject of the call; hospital_down should stay near 90% because the gloss says to call it out of service when the block's own reports show power loss or damage. Other states should be flat, since only 08 land-use lines change and they appear on few blocks."
+  }
+}

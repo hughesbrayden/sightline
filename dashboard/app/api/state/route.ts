@@ -28,8 +28,14 @@ export async function GET(req: Request) {
   const valByGen = new Map(gates.map((g) => [g.gen as number, g]));
   // This run's genomes, plus the shared baseline (generation 0 is the baseline genome, scored once on tonight's storm).
   const genomeIds = [...(policies.map((p) => p.genome_id).filter(Boolean) as string[]), "baseline"];
-  const heldout = await d.collection("heldout_scores")
+  const heldoutAll = await d.collection("heldout_scores")
     .find({ genome_id: { $in: genomeIds } }, { projection: { _id: 0 } }).sort({ created: 1 }).toArray();
+  // The baseline is scored once per world version; keep only the baseline rows from this run's world (live-1 ran on
+  // the old world, whose rows have no `world` field), so "before" and "after" come from the same storm data.
+  const runWorlds = new Set(heldoutAll.filter((h) => h.genome_id !== "baseline").map((h) => h.world ?? null));
+  const heldout = runWorlds.size
+    ? heldoutAll.filter((h) => h.genome_id !== "baseline" || runWorlds.has(h.world ?? null))
+    : heldoutAll;
 
   const gens = policies.map((p) => {
     const g = valByGen.get(p.gen);

@@ -6,7 +6,7 @@ const REPO = "https://github.com/hughesbrayden/sightline";
 const VIDEO_URL: string | null = null;  // set once the recording is uploaded
 
 type Held = { genome_id: string; town: string; split: string; score: number; life_safety_found: number;
-              life_safety_total: number; false_dispatches: number };
+              life_safety_total: number; false_dispatches: number; world?: string | null };
 
 const pct = (v: number) => `${(v * 100).toFixed(1)}%`;
 const BEATS = ["Calm night", "Storm hits", "Generation 0", "Fitness signal", "Evolution", "Replay", "Any city"];
@@ -38,8 +38,10 @@ export default function Page() {
   const h = headline;
   const held = (h.heldout || []) as Held[];
   const best = held.filter((x) => x.genome_id !== "baseline");
-  const tonightBefore = held.find((x) => x.genome_id === "baseline" && x.town === "NYC1");
   const tonightAfter = best.find((x) => x.town === "NYC1");
+  // the baseline is scored once per world version: compare with the one from the same world as the evolved score
+  const tonightBefore = held.find((x) => x.genome_id === "baseline" && x.town === "NYC1" &&
+                                         (x.world ?? null) === (tonightAfter?.world ?? null));
   const cities = best.filter((x) => x.split === "cities");
   return (
     <main style={{ background: c.surface, color: c.ink, minHeight: "100vh", fontFamily: "'IBM Plex Sans', system-ui, sans-serif" }}>
@@ -87,7 +89,7 @@ export default function Page() {
             <>
               <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 8 }}>Tonight&apos;s NYC storm: held out, never trained on, scored once</div>
               <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-                <Stat label="Balanced accuracy" from={pct(tonightBefore.score)} to={pct(tonightAfter.score)} note="Generation 0 vs the evolved harness (generation 3)" />
+                <Stat label="Balanced accuracy" from={pct(tonightBefore.score)} to={pct(tonightAfter.score)} note={`Generation 0 vs the evolved harness (generation ${Number(tonightAfter.genome_id.split("_g").pop())})`} />
                 <Stat label="False dispatches" from={String(tonightBefore.false_dispatches)} to={String(tonightAfter.false_dispatches)} note="Life-safety call on a block that was actually intact" />
                 <Stat label="Rescue-critical blocks found" from={`${tonightBefore.life_safety_found}/${tonightBefore.life_safety_total}`} to={`${tonightAfter.life_safety_found}/${tonightAfter.life_safety_total}`} note="Collapsed, homes flooded, fire, hospital down" />
               </div>
@@ -101,7 +103,7 @@ export default function Page() {
               <Stat label="Next season, cities it never saw" to={cities.map((x) => pct(x.score)).join(" · ")} tone={c.ink}
                 note={`${cities.map((x) => CITY[x.town] || x.town).join(" · ")}: frozen policy, scored once`} />
             ) : null}
-            <Stat label="Curator cost for the whole run" to={`$${h.curatorCost.toFixed(2)}`} tone={c.ink} note="Open model (GLM-5.2) via OpenRouter; Jev about $0.12 per generation" />
+            <Stat label="Curator" to="Claude, blind" tone={c.ink} note="A fresh subagent each generation that reads only its prompt; Jev about $0.12 per generation" />
           </div>
         </section>
 
@@ -113,7 +115,7 @@ export default function Page() {
               sliver decides whether they&apos;re right. Six hours after a hurricane the evidence contradicts itself: 911 calls
               filed at the wrong block, viral &quot;verified&quot; rumors, two agencies with two damage scales, a utility feed that
               says &quot;de-energized&quot; for a whole neighborhood. Shown the 12 nearest reports, Jev maps three past storms at
-              56.7% balanced accuracy and makes 265 false dispatches.
+              {pct(h.dev.from)} balanced accuracy and makes 210 false dispatches.
             </p>
           </div>
           <div style={{ ...card, padding: 20 }}>
@@ -123,7 +125,7 @@ export default function Page() {
               <li>It compiles to a MongoDB pipeline ($geoNear, $match, $switch) that picks what Jev sees per block.</li>
               <li>Jev maps every block: 3,111 calls per generation.</li>
               <li>A scorer grades the map against an answer key the curator can&apos;t read.</li>
-              <li>A gate on a separate storm keeps or rejects each change.</li>
+              <li>A gate on two separate storms keeps a change only if it very likely helps (P &ge; 0.9) without raising harm.</li>
               <li>The final policy is scored once on tonight&apos;s storm.</li>
             </ol>
           </div>
@@ -197,16 +199,17 @@ export default function Page() {
             </table>
           </div>
           <p style={{ fontSize: 13, color: c.muted, marginTop: 10, lineHeight: 1.5 }}>
-            The recorded run <span style={{ fontFamily: mono }}>live-1</span> ran on the simple loop (one validation storm, a
-            1-point margin). The robust loop runs in the harness lab and was proven in the comparison in{" "}
-            <a href={`${REPO}/blob/main/DEMO.md#robust-loop-vs-naive-loop-vs-random`} style={{ color: c.accent }}>DEMO.md</a>;
-            porting it into the live driver is the next step. Every live generation is also traced in LangSmith. Click a
-            diagram for full size.
+            The recorded run <span style={{ fontFamily: mono }}>live-2</span> ran on the robust loop: a paired bootstrap gate
+            over two validation storms, a harm guardrail, and a vector-search lab notebook in Atlas. The robust loop was
+            first proven in the harness lab against a naive loop and random mutation (see{" "}
+            <a href={`${REPO}/blob/main/DEMO.md#robust-loop-vs-naive-loop-vs-random`} style={{ color: c.accent }}>DEMO.md</a>).
+            The earlier run <span style={{ fontFamily: mono }}>live-1</span> used the simple loop (one validation storm, a
+            1-point margin) and stalled after generation 3. Click a diagram for full size.
           </p>
         </section>
 
         <section style={{ marginTop: 32, fontSize: 14, lineHeight: 1.6 }}>
-          <strong>Stack.</strong> TypeSafe Jev (typesafe/jev-1.13 via OpenRouter) · open-model curator (GLM-5.2 via OpenRouter) ·
+          <strong>Stack.</strong> TypeSafe Jev (jev-latest) · blind Claude curator (live-2; live-1 used GLM-5.2 via OpenRouter) ·
           MongoDB Atlas: geo queries, time-series runs, vector-indexed memory, collection-level custom roles · Python harness ·
           Next.js on Vercel · Sightline design system.
           <div style={{ marginTop: 10, color: c.muted }}>
