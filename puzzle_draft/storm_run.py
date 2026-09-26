@@ -189,7 +189,7 @@ def evaluate(genome: dict, towns: list, backend, truth_source: str = "mongo", wo
         {"genome": genome, "towns": per_town, "dev": dev, "stats": stats,
          "created": datetime.now(timezone.utc).isoformat()}, indent=2), encoding="utf-8")
     return {"towns": per_town, "dev": dev, "stats": stats, "answers": answers, "truths": truths,
-            "digest": run_dir / "digest.md" if pooled else None}
+            "contexts": {k: v[0] for k, v in contexts.items()}, "digest": run_dir / "digest.md" if pooled else None}
 
 
 def cmd_run(args) -> None:
@@ -251,6 +251,18 @@ def write_digest(path: Path, genome: dict, s: dict, stats: dict, pooled: dict, c
     path.write_text("\n".join(lines), encoding="utf-8")
 
 
+def cmd_refs(args) -> None:
+    from db import connect
+    doc = {"run": "refs", "kind": "refs", "created": datetime.now(timezone.utc)}
+    for name, gid in (("baseline", "baseline"), ("ceiling", args.ceiling)):
+        summ = json.loads((OUT / "runs" / gid / "summary.json").read_text(encoding="utf-8"))
+        doc[name] = {"dev": summ["dev"]["balanced_accuracy"],
+                     "val": summ["towns"][storm.SPLITS["val"][0]]["balanced_accuracy"],
+                     "dev_false_dispatches": summ["dev"]["false_dispatches"]}
+    connect("scorer").gate_scores.insert_one(doc)  # insert-only role: the dashboard reads the newest refs doc
+    print(f"  refs: baseline {doc['baseline']}, ceiling {doc['ceiling']}")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     sub = parser.add_subparsers(dest="cmd", required=True)
@@ -259,6 +271,9 @@ def main() -> None:
     p.add_argument("--towns")
     p.set_defaults(fn=cmd_truth)
     sub.add_parser("load").set_defaults(fn=cmd_load)
+    p = sub.add_parser("refs", help="store baseline + builder-ceiling scores for the dashboard")
+    p.add_argument("--ceiling", default="ref_full_v2")
+    p.set_defaults(fn=cmd_refs)
     p = sub.add_parser("preview")
     p.add_argument("town")
     p.add_argument("xy", type=int, nargs="+")

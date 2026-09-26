@@ -122,7 +122,10 @@ class Lineage:
                                                 "false_dispatches": result["towns"][t]["false_dispatches"],
                                                 "created": now()})
         docs = [{"ts": now(), "meta": {"run": self.run, "gen": gen, "town": t}, "x": c[0], "y": c[1],
-                 "pick": a["choice"], "conf": a["confidence"], "correct": a["choice"] == result["truths"][t][c]}
+                 "pick": a["choice"], "conf": a["confidence"], "correct": a["choice"] == result["truths"][t][c],
+                 "truth": result["truths"][t][c],  # graded map published by the scorer (dev/val only)
+                 "probs": {k: round(v, 4) for k, v in a["probs"].items() if v >= 0.005},
+                 "lines": result["contexts"][(t, c)].split("\n")}  # exactly what Jev saw, for the block card
                 for (t, c), a in result["answers"].items()]
         self.scorer.runs.insert_many(docs, ordered=False)
 
@@ -139,6 +142,8 @@ def main() -> None:
     parser.add_argument("--run", default=None, help="run id (default: timestamp)")
     parser.add_argument("--truth", choices=["mongo", "file"], default="mongo")
     parser.add_argument("--no-mongo", action="store_true", help="keep lineage local only")
+    parser.add_argument("--seed", help="start from this genome instead of the baseline (e.g. a previous run's best)")
+    parser.add_argument("--resume", action="store_true", help="continue --run from its local lineage (adds --gens more)")
     args = parser.parse_args()
     load_env()
     key = os.environ.get("OPENROUTER_API_KEY") or sys.exit("OPENROUTER_API_KEY missing")
@@ -149,22 +154,40 @@ def main() -> None:
     brief = BRIEF.read_text(encoding="utf-8")
     print(f"  {run}: curator {model}, backend {backend.name}, budget {args.gens} generations, gate margin {GATE_MARGIN:.0%}")
 
-    base = load_genome(GENOMES / "baseline.json")
-    base = {**base, "id": f"{run}_g00"}
-    t0 = time.perf_counter()
-    res = evaluate(base, DEV + VAL, backend, args.truth, quiet=True)
-    best_val = res["towns"][VAL[0]]["balanced_accuracy"]
-    history = [{"gen": 0, "status": "accepted", "genome": base, "dev": dev_summary(res["dev"]), "gate": "baseline"}]
-    lineage.policy({"gen": 0, "parent": None, "status": "accepted", "genome_id": base["id"], "ops": base["ops"],
-                    "format": base.get("format", "raw"), "compiled_pipeline": compile_pipeline(base),
-                    "rationale": base["rationale"], "prediction": base["prediction"],
-                    "dev_score": dev_summary(res["dev"]), "gate": "baseline"})
-    lineage.scores(0, res, "baseline")
-    digest = res["digest"].read_text(encoding="utf-8")
-    print(f"  gen 0  baseline   dev {res['dev']['balanced_accuracy']:.1%}  val {best_val:.1%}  gate baseline  "
-          f"jev {res['stats']['tokens']} tok  {time.perf_counter() - t0:.0f}s")
+    if args.resume:  # rebuild the curator's own history from the local lineage; it sees nothing new
+        docs = {}
+        for line in (OUT / "lineage" / f"{run}.jsonl").read_text(encoding="utf-8").splitlines():
+            d = json.loads(line)
+            docs[d["gen"]] = d
+        history = [{"gen": g, "status": d["status"], "gate": d.get("gate"), "dev": d.get("dev_score"),
+                    "genome": {"id": d.get("genome_id"), "ops": d.get("ops", []), "format": d.get("format", "raw"),
+                               "rationale": d.get("rationale"), "prediction": d.get("prediction")}}
+                   for g, d in sorted(docs.items()) if d["status"] != "running"]
+        best = max((h for h in history if h["status"] == "accepted"), key=lambda h: h["gen"])
+        summ = json.loads((OUT / "runs" / best["genome"]["id"] / "summary.json").read_text(encoding="utf-8"))
+        best_val = summ["towns"][VAL[0]]["balanced_accuracy"]
+        last = max((h for h in history if h.get("dev")), key=lambda h: h["gen"])
+        digest = (OUT / "runs" / last["genome"]["id"] / "digest.md").read_text(encoding="utf-8")
+        first = max(docs) + 1
+        print(f"  resuming {run} at gen {first}: best gen {best['gen']} (val {best_val:.1%})")
+    else:
+        base = load_genome(args.seed or GENOMES / "baseline.json")
+        base = {**base, "id": f"{run}_g00"}
+        t0 = time.perf_counter()
+        res = evaluate(base, DEV + VAL, backend, args.truth, quiet=True)
+        best_val = res["towns"][VAL[0]]["balanced_accuracy"]
+        history = [{"gen": 0, "status": "accepted", "genome": base, "dev": dev_summary(res["dev"]), "gate": "baseline"}]
+        lineage.policy({"gen": 0, "parent": None, "status": "accepted", "genome_id": base["id"], "ops": base["ops"],
+                        "format": base.get("format", "raw"), "compiled_pipeline": compile_pipeline(base),
+                        "rationale": base["rationale"], "prediction": base["prediction"],
+                        "dev_score": dev_summary(res["dev"]), "gate": "baseline"})
+        lineage.scores(0, res, "baseline")
+        digest = res["digest"].read_text(encoding="utf-8")
+        print(f"  gen 0  baseline   dev {res['dev']['balanced_accuracy']:.1%}  val {best_val:.1%}  gate baseline  "
+              f"jev {res['stats']['tokens']} tok  {time.perf_counter() - t0:.0f}s")
+        first = 1
 
-    for gen in range(1, args.gens + 1):
+    for gen in range(first, first + args.gens):
         t0 = time.perf_counter()
         parent = max(h["gen"] for h in history if h["status"] == "accepted")
         prompt = build_prompt(brief, history, digest)

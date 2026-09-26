@@ -6,6 +6,7 @@ on a storm it never saw, and can't cheat because MongoDB locks the answers away.
 - [The pitch](#the-pitch)
 - [Architecture](#architecture)
 - [Run the demo yourself](#run-the-demo-yourself)
+- [Dashboard](#dashboard-dashboard)
 - [Status and remaining tasks](#status-and-remaining-tasks)
 - [What we learned](#what-we-learned)
 - [Video and hosting](#video-and-hosting)
@@ -164,6 +165,35 @@ This writes to `heldout_scores`. Never feed these numbers back into the loop.
 ```bash
 python puzzle_draft/run.py run curator/genomes/baseline.json P1 --backend fake --private
 ```
+
+## Dashboard (`dashboard/`)
+
+A Next.js app that reads MongoDB with the **read-only `dashboard` login**. It can't read `assessments` and can't
+write anything. The API is built and tested; the page at `/` is a placeholder until the v0 UI replaces it.
+
+```bash
+cd dashboard && npm install
+echo "MONGODB_URI_DASHBOARD=<dashboard login URI>" > .env.local   # server-side only, gitignored
+npm run dev            # http://localhost:3000
+```
+
+**Deploy to Vercel:**
+
+1. Import the repo.
+2. Set **Root Directory** to `dashboard`.
+3. Add `MONGODB_URI_DASHBOARD` as an environment variable. Never add a `NEXT_PUBLIC_` variant.
+
+**API contract** (poll `/api/state` every 2 seconds):
+
+| Endpoint | Returns |
+|---|---|
+| `GET /api/state?run=live-1` | `run` {id, used, status, cost_usd, best_gen}; `refs` {baseline, ceiling: {dev, val}}; `gens` [{gen, parent, status, gate, dev, val, life_safety_found, false_dispatches, hypothesis, refuted_if, prediction, ops, pipeline, curator}]; `heldout` [once-only scores]; `probe` {denied, error} |
+| `GET /api/map?run=&gen=&town=` | {w, h, mask, states, colors, sea, split, accuracy, cells: [{x, y, pick, conf, correct}]} |
+| `GET /api/block?run=&gen=&town=&x=&y=` | {lines: the exact text Jev saw, jev: {pick, conf, probs}, assessment, correct} |
+| `GET /api/reports?town=NYC1&until_hour=6` | the report feed in arrival order: [{hour, source, x, y, value, text, verified}] |
+
+The storm ids are MIA1, HOU1 and NOL1 (dev), NYC0 (val), NYC1 (tonight) and MIA2, HOU2 and NOL2 (cities). The
+state names and colors are in `dashboard/lib/storm-meta.json`, generated from `storm.py`.
 
 ## Status and remaining tasks
 

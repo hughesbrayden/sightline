@@ -1,0 +1,26 @@
+{
+  "id": "live-1_g03",
+  "rationale": {
+    "hypothesis": "Raw listing of neighboring reports causes Jev to over-weight dramatic life-safety reports from adjacent blocks (e.g., 911 STRUCTURE-COLLAPSE, WATER-RESCUE, fire-dept Destroyed), bleeding life-safety states onto intact or less-damaged blocks. This drives both false dispatches and misclassifications like roof_damage\u2192collapsed. Summarizing neighbors as a profile should reduce this bleeding while preserving useful context.",
+    "refuted_if": "False dispatches don't decrease or life-safety found drops below 215, showing Jev needs raw neighbor listings to correctly identify true life-safety blocks."
+  },
+  "prediction": "False dispatches should drop below 80 and intact accuracy should improve. Life-safety found may decrease slightly but should stay above 220. Balanced accuracy should increase to ~62-63%.",
+  "ops": [
+    {
+      "op": "exclude_source",
+      "sources": [
+        "social-post"
+      ]
+    },
+    {
+      "op": "include_own",
+      "k": 12
+    },
+    {
+      "op": "include_related",
+      "radius": 2,
+      "show": "profile"
+    }
+  ],
+  "format": "raw"
+}

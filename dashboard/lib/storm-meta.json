@@ -1,0 +1,81 @@
+{
+  "states": [
+    "intact",
+    "flooded_street",
+    "flooded_homes",
+    "roof_damage",
+    "collapsed",
+    "fire",
+    "road_blocked",
+    "power_out",
+    "downed_lines",
+    "shelter_open",
+    "hospital_ok",
+    "hospital_down"
+  ],
+  "descriptions": {
+    "intact": "No significant damage to the block",
+    "flooded_street": "Floodwater in the streets, homes not flooded inside",
+    "flooded_homes": "Floodwater inside homes",
+    "roof_damage": "Roofs damaged, buildings standing",
+    "collapsed": "One or more buildings collapsed",
+    "fire": "Active fire or recent burn",
+    "road_blocked": "Road impassable from debris or trees",
+    "power_out": "Power out, no other significant damage",
+    "downed_lines": "Power lines down on the block",
+    "shelter_open": "Emergency shelter operating on the block",
+    "hospital_ok": "Hospital operating normally",
+    "hospital_down": "Hospital not operating"
+  },
+  "colors": {
+    "intact": "#6B7A5A",
+    "flooded_street": "#5FA8D3",
+    "flooded_homes": "#1F5FBF",
+    "roof_damage": "#E0B04A",
+    "collapsed": "#B3261E",
+    "fire": "#FF6A00",
+    "road_blocked": "#8C6D4F",
+    "power_out": "#7A5FA8",
+    "downed_lines": "#D65DB1",
+    "shelter_open": "#2BB673",
+    "hospital_ok": "#F2F2F2",
+    "hospital_down": "#111111"
+  },
+  "sea": "#16222E",
+  "lifeSafety": [
+    "collapsed",
+    "flooded_homes",
+    "fire",
+    "hospital_down"
+  ],
+  "splits": {
+    "dev": [
+      "MIA1",
+      "HOU1",
+      "NOL1"
+    ],
+    "val": [
+      "NYC0"
+    ],
+    "heldout": [
+      "NYC1"
+    ],
+    "cities": [
+      "MIA2",
+      "HOU2",
+      "NOL2"
+    ]
+  },
+  "sources": [
+    "911-call",
+    "311",
+    "social-post",
+    "city-survey",
+    "fire-dept",
+    "pre-storm-map",
+    "drone-pass",
+    "utility-feed"
+  ],
+  "w": 32,
+  "h": 32
+}
