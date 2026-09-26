@@ -4,6 +4,7 @@
 """
 
 import json
+import ssl
 import statistics
 import sys
 import time
@@ -12,6 +13,11 @@ import urllib.request
 from pathlib import Path
 
 BASE = next((a for a in sys.argv[1:] if a.startswith("http")), "http://localhost:3000").rstrip("/")
+try:  # python.org builds on macOS ship without root certificates
+    import certifi
+    CTX = ssl.create_default_context(cafile=certifi.where())
+except ImportError:
+    CTX = None
 RUN = sys.argv[sys.argv.index("--run") + 1] if "--run" in sys.argv else "live-1"
 META = json.loads((Path(__file__).resolve().parent.parent / "lib" / "storm-meta.json").read_text())
 results = []
@@ -20,7 +26,7 @@ results = []
 def get(path):
     start = time.perf_counter()
     try:
-        with urllib.request.urlopen(BASE + path, timeout=30) as r:
+        with urllib.request.urlopen(BASE + path, timeout=30, context=CTX) as r:
             body = r.read()
             return r.status, json.loads(body), len(body), (time.perf_counter() - start) * 1000
     except urllib.error.HTTPError as e:

@@ -194,6 +194,11 @@ echo "MONGODB_URI_DASHBOARD=<dashboard login URI>" > .env.local   # server-side 
 npm run dev            # http://localhost:3000
 ```
 
+**Live:** https://sightline-dashboard.vercel.app (Vercel project `sightline-dashboard`, root `dashboard/`).
+It passes all 38 contract checks: `python dashboard/scripts/validate_api.py https://sightline-dashboard.vercel.app`.
+To redeploy, run `cd dashboard && vercel deploy --prod`. After v0's UI is merged into `dashboard/app/`, connect the
+Git repo in Vercel so every push deploys.
+
 **Deploy to Vercel:**
 
 1. Import the repo.
