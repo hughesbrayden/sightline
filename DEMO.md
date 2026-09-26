@@ -14,11 +14,12 @@ a storm it never saw, and can't cheat because MongoDB locks the answers away.
 
 - [The pitch](#the-pitch)
 - [Architecture](#architecture)
+- [The harness loop](#the-harness-loop)
 - [Run the backend](#run-the-backend)
 - [Score tonight's storm (once)](#score-tonights-storm-once)
 - [Dashboard and stage demo](#dashboard-and-stage-demo)
-- [LangSmith tracing](#langsmith-tracing)
 - [Results](#results)
+- [Robust loop vs naive loop vs random](#robust-loop-vs-naive-loop-vs-random)
 - [Status](#status)
 - [What we learned](#what-we-learned)
 - [Video and submission](#video-and-submission)
@@ -33,116 +34,88 @@ storms at **56.7%** balanced accuracy and makes **265** false dispatches.
 
 **What we built.** Sightline searches for the context policy, not the prompt or the weights:
 
-1. A blind curator LLM proposes a context policy (a "genome").
+1. A blind, stateless curator LLM proposes one change to the context policy (a "genome"). Everything it
+   remembers comes from the harness: a lab notebook in Atlas Vector Search and a digest of what the last change
+   fixed and broke.
 2. The policy compiles to a MongoDB aggregation pipeline (`$geoNear`, `$match`, `$switch`) that picks exactly
    what Jev sees for each block.
-3. Jev maps every block (3,111 calls per generation).
-4. A scorer grades the map against an official assessment that the curator's database login cannot read.
-5. A gate on a separate storm keeps or rejects each policy.
-6. The final policy is scored once on a storm it never saw: tonight's NYC.
+3. Jev maps every block. A scorer grades the map against an official assessment that the curator's database
+   login cannot read.
+4. A statistical gate keeps a change only if it very likely helps on storms the curator never sees, without
+   raising expected harm.
+5. The final policy is scored once on a storm it never saw: tonight's NYC.
 
 **Why it's different.**
 
 - It optimizes *context*, the part of a fast-model system that decides whether the model can be right.
 - It proves transfer: the curator never sees validation traces, and the held-out storm is scored once.
+- It's tested against the obvious alternative. On four fresh storms, the robust loop beat a naive
+  "keep whatever scores higher" loop and random mutation, block for block (see
+  [the comparison](#robust-loop-vs-naive-loop-vs-random)).
 - The answer lock is enforced by MongoDB roles, not by trusting the agent. A tripwire probe shows the refusal live:
   `denied (code 13): not authorized on jevly to find on assessments`.
 
-**Tech stack.** TypeSafe Jev (`typesafe/jev-1.13`, via OpenRouter); an open-model curator (`z-ai/glm-5.2`, via
-OpenRouter); MongoDB Atlas (geo queries, time-series `runs`, vector-indexed `memory`, collection-level custom
-roles); a Python harness; the Sightline design system; a Next.js dashboard on Vercel.
+**Tech stack.** TypeSafe Jev (`jev-latest` on a TypeSafe key, or `typesafe/jev-1.13` via OpenRouter); a curator
+LLM (`z-ai/glm-5.2` via OpenRouter for `live-1`, a Claude subagent in the harness lab); MongoDB Atlas (geo queries,
+time-series `runs`, Vector Search over the `memory` notebook with `voyage-4` embeddings from the Atlas model API,
+collection-level custom roles); a Python harness; the Sightline design system; a Next.js dashboard on Vercel.
 
 ## Architecture
 
 ### The system
 
-Blue nodes run under one of the three locked MongoDB logins. The answer key (`assessments`) is reachable only by
-the scorer.
+Four parts, three locked database logins. The answer key is readable only by the scorer; the curator's login is
+refused (the tripwire probe shows it live).
 
 ```mermaid
 flowchart LR
-  subgraph GEN["Storm world (builder only)"]
-    STORM["storm.py<br/>8 simulated storms<br/>12 states, 8 report sources"]
+  WORLD["Storm world<br/>8 simulated storms"] -- admin --> ATLAS
+  subgraph ATLAS["MongoDB Atlas"]
+    REP[("reports · blocks")]
+    KEY[("assessments<br/>answer key")]
+    MEM[("policies · memory<br/>runs · scores")]
   end
+  REP -- curator login --> LOOP["Harness loop<br/>curator → Jev → scorer → gate"]
+  KEY -- scorer login only --> LOOP
+  LOOP --> MEM
+  MEM -- read-only login --> APP["Dashboard + stage demo<br/>(Vercel)"]
+  LOOP -. "curator reads answers: DENIED" .-x KEY
 
-  subgraph ATLAS["MongoDB Atlas · jevly"]
-    REPORTS[("reports<br/>blocks")]
-    TRUTH[("assessments<br/>answer key")]
-    POL[("policies<br/>memory")]
-    RUNS[("runs · gate_scores<br/>heldout_scores")]
-  end
-
-  subgraph LOOP["Harness loop · driver.py"]
-    CUR["Curator LLM<br/>GLM-5.2 via OpenRouter"]
-    VAL["Validate genome<br/>leak guard · memory check"]
-    COMP["Compile ops to a<br/>$geoNear / $match / $switch pipeline"]
-    CTX["Harness: 12 lines per block"]
-    JEV["Jev · typesafe/jev-1.13<br/>3,111 blocks per generation"]
-    SCORE["Scorer<br/>balanced acc · life-safety · false dispatches"]
-    GATE{"Gate<br/>validation +1 pt?"}
-  end
-
-  subgraph WEB["Vercel · Next.js"]
-    API["Read-only API<br/>/api/state /map /block /reports"]
-    UI["Start page +<br/>Sightline stage demo"]
-    SNAP["snapshot.json<br/>offline fallback"]
-  end
-
-  STORM -- "admin login" --> REPORTS
-  STORM -- "admin login" --> TRUTH
-  CUR --> VAL --> COMP --> CTX
-  REPORTS -- "curator login" --> CTX
-  CTX --> JEV --> SCORE
-  TRUTH -- "scorer login only" --> SCORE
-  SCORE -- "dev digest: scores + 30 traces" --> CUR
-  SCORE --> GATE
-  GATE -- "pass / fail only" --> CUR
-  GATE -- "lineage (curator login)" --> POL
-  SCORE -- "scorer login" --> RUNS
-  POL -- "dashboard login" --> API
-  RUNS -- "dashboard login" --> API
-  API --> UI
-  SNAP -. "if the API is down" .-> UI
-  CUR -. "tripwire probe: DENIED" .-x TRUTH
-
-  classDef locked fill:#ddeff3,stroke:#0a6c86,color:#15191b;
   classDef answer fill:#f6dcd9,stroke:#b0271f,color:#15191b;
-  class CTX,SCORE,API,POL locked;
-  class TRUTH answer;
+  class KEY answer;
 ```
 
-### One generation, step by step
+## The harness loop
+
+The loop follows the standard self-evolving pattern (execute → trace → propose → gate → keep, with lineage),
+hardened against the failure modes that pattern is known for: overfitting to the storms it tunes on, noisy
+feedback, bloat, and a curator with no memory.
 
 ```mermaid
-sequenceDiagram
-  autonumber
-  participant D as driver.py
-  participant C as Curator LLM
-  participant H as Harness
-  participant J as Jev
-  participant S as Scorer (scorer login)
-  participant M as MongoDB
-
-  D->>D: Build the prompt: brief + own past genomes + last dev digest
-  D->>D: Leak check (no storm ids, cities, truth, validation numbers)
-  D->>C: Propose the next genome
-  C-->>D: Genome JSON: ops, hypothesis, prediction
-  D->>D: Validate + leak guard (no coordinates or storm ids in ops)
-  D->>D: Memory check: skip near-duplicates of rejected ideas
-  D->>M: policies: status running + compiled pipeline (curator login)
-  loop 3,111 blocks: 3 past storms + the validation storm
-    H->>M: Reports near the block (curator login)
-    H->>J: 12 lines + the 12 states
-    J-->>H: Pick + confidence (about 250 ms)
-  end
-  H->>S: Answers
-  S->>M: Read assessments (only this login can)
-  S->>M: runs rows, gate_scores (validation number)
-  S-->>D: Dev scores + 30 traces, validation balanced accuracy
-  D->>D: Gate: keep only if validation beats the best by 1 point
-  D->>M: policies: accepted / rejected, dev score, gate pass/fail
-  D-->>C: Next prompt sees the digest and pass/fail, never the validation number
+flowchart LR
+  P["Curator proposes<br/>one change + numeric prediction"] --> S{"Screen<br/>~600 dev blocks"}
+  S -- clearly worse --> N
+  S --> E["Jev maps dev +<br/>2 validation storms"]
+  E --> G{"Gate<br/>P(better) ≥ 0.9 on validation<br/>dev not down > 1 pt<br/>harm not up > 5%"}
+  G -- keep --> K["New parent"]
+  G -- reject --> N["Lesson → Atlas notebook"]
+  K --> N
+  N -- "top lessons ($vectorSearch)<br/>+ fixed / broken digest" --> P
 ```
+
+| Weakness of a simple loop | What the robust loop does |
+|---|---|
+| **The gate is noise.** A 1-point margin on one validation storm, when hospital states are 4 blocks per storm and one block flip moves balanced accuracy about 2 points | A **paired, stratified bootstrap** on two validation storms (NYC0 + HOU0): child and parent compared on the same blocks, resampled within each true state. Keep only if P(better) ≥ 0.9 |
+| One number decides everything | **Guardrails:** dev may not drop more than 1 point, and expected harm (5 × missed life-safety blocks + false dispatches) may not rise more than 5% |
+| The curator only hears "fail" | A **diff digest**: which blocks the change fixed and broke, by state, with before/after traces. Predictions are numeric and scored against the result |
+| No memory between stateless curator calls | A **vector lab notebook**: every generation writes a lesson (hypothesis, change, predicted vs actual, verdict) to Atlas `memory`, and the prompt retrieves the most relevant ones with `$vectorSearch`. A proposal close in meaning to a rejected lesson *and* making the same structural change is skipped unscored |
+| Every idea costs a full evaluation | A **screen** on a stratified dev sample rejects clearly bad ideas at a fraction of the calls |
+| Accepted rules pile up | A **prune pass** at the end removes each rule in turn and keeps only those that measurably help. The survivors are "what it learned" |
+
+`live-1` (below) ran on the simple loop in `driver.py`: one validation storm and a 1-point margin. The robust loop
+runs in the harness lab (`evolve.py`, branch `curator-inbox`) and was proven in
+[the comparison](#robust-loop-vs-naive-loop-vs-random). Porting it into `driver.py` for the next live run is the
+next step.
 
 ### Storms and splits
 
@@ -210,7 +183,8 @@ builder reference 69.0% / 70.7%; dev false dispatches 207 → 58.
 | `puzzle_draft/storm.py` | Storm generator: city outlines, damage rules, sources, coverage assertion |
 | `puzzle_draft/storm_harness.py` | Genome → the exact text Jev sees; leak guard; ops → Mongo pipeline compiler |
 | `puzzle_draft/storm_run.py` | `build`, `truth`, `load`, `preview`, `run` (scorer reads truth through the scorer login), `refs` |
-| `puzzle_draft/driver.py` | The automatic loop: curator → validate → memory check → evaluate → gate → lineage |
+| `puzzle_draft/driver.py` | The automatic loop behind `live-1`: curator → validate → memory check → evaluate → gate → lineage |
+| `puzzle_draft/evolve.py`, `loopstats.py`, `notebook.py`, `mutate.py`, `abtest.py` | Harness lab (branch `curator-inbox`): the robust loop, bootstrap gate, Atlas vector notebook, random-mutation control, arm comparison |
 | `puzzle_draft/storm_curator_brief.md` | Everything the curator is told (nothing about the planted habits) |
 | `puzzle_draft/storm_genomes/` | `baseline.json` (12 nearest reports) and each run's best genome |
 | `puzzle_draft/storm_reference/` | Builder's hand-written ceiling. **Never shown to the curator** |
@@ -397,6 +371,51 @@ neighbors within 2 blocks instead of listing them. The curator's LLM cost for al
 **Next season, cities it never saw** (frozen generation 3, scored once): Miami 68.6%, Houston 66.1%,
 New Orleans 66.2% balanced accuracy, with 38, 55 and 30 false dispatches.
 
+## Robust loop vs naive loop vs random
+
+Does the robust loop matter, or would any loop do? Three arms, the same starting policy, the same Jev,
+8 generations each, two runs per arm:
+
+- **Robust:** everything in [the harness loop](#the-harness-loop). The curator is a blind Claude subagent that
+  reads only its prompt file.
+- **Naive:** the same curator and the same dev traces, with a generic brief. It keeps any change that raises the
+  dev score. No validation gate, guardrails, notebook or diff digest.
+- **Random:** no LLM. Random valid edits to the policy, kept on any dev gain. This separates "a smart curator"
+  from "8 more tries".
+
+Each run's final policy was then scored **once** on four fresh storms that no arm ever saw (MIA9, HOU9, NOL9,
+NYC9). Tonight's NYC1 was not touched.
+
+| Run | Test balanced accuracy (90% CI) | vs baseline | Kept / tried | New Jev calls |
+|---|---|---|---|---|
+| Baseline | 61.1% (57.7–64.2) | | | |
+| **Robust 1** | **70.0%** (67.0–73.1) | +9.0, P 1.00 | 3 / 8 | 5.4k |
+| **Robust 2** | **74.9%** (72.4–77.2) | +13.8, P 1.00 | 2 / 8 | 8.4k |
+| Naive 1 | 67.4% (64.1–70.6) | +6.3, P 0.99 | 5 / 8 | 21.6k |
+| Naive 2 | 62.9% (59.6–66.3) | +1.9, P 0.78 | 3 / 8 | 28.5k |
+| Random 1 | 62.1% (58.9–65.4) | +1.1, P 0.69 | 2 / 8 | 13.8k |
+| Random 2 | 64.5% (61.3–67.7) | +3.5, P 0.96 | 1 / 8 | |
+
+- **Accuracy.** Compared block for block on the test storms, each robust run beats each naive and random run.
+  The smallest margin is Robust 1 over Naive 1: +2.7 points, P 0.99.
+- **Overfitting.** The naive rule kept a change that looked slightly better on dev (+0.4) but was probably worse
+  on validation (−2.5, P 0.13), and Naive 2 ended barely above baseline. The robust gate turned down the same kind
+  of change (dev +2.1, validation −0.1).
+- **Cost.** The robust loop used 3–4× fewer new Jev calls than the naive loop: the screen and the notebook stop
+  weak and repeated ideas before a full evaluation.
+- **What it learned** (rules that survived the prune pass): drop social posts; read the city-survey letters as
+  damage types; treat a utility "line fault" as downed lines; narrow which neighbor reports Jev sees.
+- **Harm is not where it wins.** Expected harm on the test storms was 477–496 for the naive runs and 505–615 for
+  the robust runs (baseline 728). Every evolved policy cuts false dispatches sharply (298 → 21–135), but
+  life-safety recall dipped 1–3 points in the robust runs. The harm guardrail checks validation only, and that
+  didn't fully carry over.
+
+**Caveats.** The lab ran on the world version from before the real-vocabulary cutover, so its numbers aren't
+comparable with `live-1`'s. Two harness bugs were found and fixed during the runs: the naive prompt mislabeled a
+rejected candidate's traces for three generations of Naive 2, and one robust generation was wrongly skipped as a
+repeat and then re-scored. The first harm guardrail (no rise at all) rejected a +5.9-point, P 1.00 validation win
+over two extra false dispatches; it now allows a 5% rise.
+
 ## Status
 
 | Area | Status |
@@ -405,12 +424,12 @@ New Orleans 66.2% balanced accuracy, with 38, 55 and 30 false dispatches.
 | MongoDB Atlas: schema, three locked logins, tripwire probe, integration test | Done |
 | Harness + ops → pipeline compiler + scorer via the scorer login | Done |
 | Automatic loop with gate, leak guard, memory check, lineage | Done; `live-1` ran 13 generations |
+| Robust loop: bootstrap gate on 2 validation storms, harm guardrail, Atlas vector notebook, diff digest, prune | Done in the harness lab; beat naive and random on fresh storms. Not yet in `driver.py` |
 | Dashboard API (39/39 checks), start page, stage demo on live data, offline fallback | Done, live at https://sightline-jev.vercel.app |
 | One-command backend (`sightline.sh`) | Done |
 | Tonight's storm + cities scored once | Done: NYC1 62.7% → 67.0%, false dispatches 131 → 72 |
 | Video | To record |
-| LangSmith tracing (one trace per generation, scores as feedback, links in the arena) | Done |
-| Vector search in the memory check, field-verified spot check | Not done (optional) |
+| LangSmith traces, field-verified spot check | Not done (optional; cut first) |
 
 **Remaining, in order.**
 
@@ -431,16 +450,21 @@ New Orleans 66.2% balanced accuracy, with 38, 55 and 30 false dispatches.
 - **An open model can curate from traces alone.** GLM-5.2 found the rumor problem in its first generation, with
   no hints about the planted habits.
 - **The gate does its job, and has a cost.** It rejected 9 of 11 scored proposals. One of them (gen 4) was a real
-  +0.8 on validation, just under the 1-point noise margin.
+  +0.8 on validation, just under the 1-point noise margin, and validation then stayed at 72.1% for ten
+  generations. A fixed margin on one storm is the wrong tool: the bootstrap gate on two storms asks how likely a
+  change is to help, not whether it cleared a line.
+- **Keeping whatever scores higher overfits.** The naive loop kept 8 of 16 changes and still finished below both
+  robust runs on fresh storms.
+- **A guardrail that is too strict costs twice.** It rejects the win, and then the notebook records the idea as a
+  failure and blocks similar ones.
 - **Operations matter at hackathon speed.** Curator replies sometimes come back empty (hidden reasoning uses up
   the token budget), and Jev calls need purchased credit. The driver now retries, logs the provider, and the demo
   ships a snapshot so it never depends on a live service.
 
 **Still to try.**
 
-- Validate on several storms at once, to shrink gate noise.
+- Port the robust loop into `driver.py` and run `live-2` on the real-vocabulary world.
 - A deep-agent curator with a `validate_genome` tool and an in-memory file system only.
-- Vector search over rejected ideas in the memory check.
 - A per-account exclusion op.
 - Real data: NYC 311 open data and FEMA damage assessments.
 - LangSmith experiments per generation.
