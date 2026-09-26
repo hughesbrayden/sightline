@@ -1,4 +1,4 @@
-# Jevly: hurricane damage map demo
+# Sightline: hurricane damage map demo
 
 A harness that teaches itself what context to show **Jev**, TypeSafe's fast decision model, proves the result
 on a storm it never saw, and can't cheat because MongoDB locks the answers away.
@@ -18,7 +18,7 @@ itself: 911 calls filed at the wrong block, viral "verified" rumors, two agencie
 utility feed that says "de-energized" for a whole neighborhood. Shown the 12 nearest reports, Jev maps three past
 storms at **56.7%** balanced accuracy and makes **265** false dispatches.
 
-**What we built.** Jevly searches for the context policy, not the prompt or the weights:
+**What we built.** Sightline searches for the context policy, not the prompt or the weights:
 
 1. A blind curator LLM proposes a context policy (a "genome").
 2. The policy compiles to a MongoDB aggregation pipeline (`$geoNear`, `$match`, `$switch`) that picks exactly
@@ -83,6 +83,9 @@ Each source has one planted habit, and each habit can be fixed with a harness op
 | `utility-feed` | accurate but feeder-wide |
 
 ### MongoDB (`jevly` database)
+
+The project is now called Sightline, but the database, logins, local container and LangSmith project keep the
+original `jevly` name, so existing Atlas setups and `.env` files keep working.
 
 | Collection | Contents | Read by | Written by |
 |---|---|---|---|
