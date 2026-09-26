@@ -95,3 +95,65 @@ button.sl-node:hover { border-color: var(--line-strong); }
 @media (prefers-reduced-motion: no-preference) {
   .sl-cell { transition: opacity 240ms ease-out, background-color 240ms ease-out; }
 }
+
+/* ScoreCurve reference lines */
+.sl-ref { stroke: var(--ink-muted); stroke-width: 1; stroke-dasharray: 2 4; }
+.sl-curve-svg .sl-ref-label { fill: var(--ink-muted); font-size: 10px; }
+
+/* DamageMap */
+.sl-map { display: grid; width: max-content; background: var(--map-water); padding: 1px; }
+.sl-map-pick { cursor: crosshair; }
+.sl-mcell { position: relative; }
+.sl-mcell-wrong { box-shadow: inset 0 0 0 1px var(--ink), inset 0 0 0 2px var(--surface-raised); }
+.sl-mcell-sel { outline: 2px solid var(--accent); outline-offset: 1px; z-index: 1; }
+.sl-glyph { position: absolute; inset: 22%; display: block; }
+.sl-glyph-hospital {
+  background: linear-gradient(var(--map-glyph), var(--map-glyph)) center / 100% 30% no-repeat,
+              linear-gradient(var(--map-glyph), var(--map-glyph)) center / 30% 100% no-repeat;
+}
+.sl-glyph-shelter { background: var(--map-glyph); clip-path: polygon(50% 4%, 96% 94%, 4% 94%); }
+.sl-glyph-road {
+  background: linear-gradient(45deg, transparent 40%, var(--map-glyph) 40% 60%, transparent 60%),
+              linear-gradient(-45deg, transparent 40%, var(--map-glyph) 40% 60%, transparent 60%);
+}
+.sl-glyph-power { background: var(--map-glyph); clip-path: polygon(58% 0, 18% 56%, 46% 56%, 36% 100%, 82% 40%, 54% 40%, 70% 0); }
+.sl-glyph-fire { inset: 28%; border-radius: 50%; background: var(--map-fire); }
+
+/* DamageLegend */
+.sl-legend-map { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px 16px; font-size: 12px; line-height: 16px; color: var(--ink); }
+.sl-legend-one { grid-template-columns: minmax(0, 1fr); }
+.sl-legend-map li { display: flex; align-items: center; gap: 8px; }
+.sl-swatch { position: relative; width: 14px; height: 14px; flex: none; box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.06); }
+.sl-crit { margin-left: auto; font-size: 10px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--critical); }
+
+/* LineageTree */
+.sl-lt { display: block; max-width: 100%; height: auto; overflow: visible; }
+.sl-lt-edge { stroke: var(--accent); stroke-width: 2; }
+.sl-lt-branch { fill: none; stroke-width: 1.5; stroke-dasharray: 4 4; }
+.sl-lt-branch-rejected { stroke: var(--critical); }
+.sl-lt-branch-skipped { stroke: var(--line-strong); }
+.sl-lt-node circle { stroke-width: 2; }
+.sl-lt-baseline circle { fill: var(--ink); stroke: var(--ink); }
+.sl-lt-kept circle { fill: var(--accent); stroke: var(--accent); }
+.sl-lt-rejected circle { fill: var(--surface-raised); stroke: var(--critical); stroke-dasharray: 3 3; }
+.sl-lt-skipped circle { fill: var(--surface-raised); stroke: var(--line-strong); }
+.sl-lt .sl-lt-num { font-family: var(--font-mono); font-size: 11px; font-weight: 500; }
+.sl-lt-baseline .sl-lt-num, .sl-lt-kept .sl-lt-num { fill: var(--surface-raised); }
+.sl-lt-rejected .sl-lt-num { fill: var(--critical); }
+.sl-lt-skipped .sl-lt-num { fill: var(--ink-muted); }
+.sl-lt .sl-lt-label { font-family: var(--font-mono); font-size: 11px; fill: var(--ink-muted); }
+.sl-lt-kept .sl-lt-label { fill: var(--ink); }
+.sl-lt-rejected .sl-lt-label { fill: var(--critical); }
+.sl-lt-current circle { fill: var(--surface-raised); stroke: var(--series-heldout); stroke-width: 2; stroke-dasharray: 4 3; }
+.sl-lt-current .sl-lt-num { fill: var(--series-heldout); font-family: var(--font-mono); font-size: 11px; }
+@media (prefers-reduced-motion: no-preference) {
+  .sl-lt-current circle { animation: sl-lt-spin 1.6s linear infinite; transform-box: fill-box; transform-origin: center; }
+  @keyframes sl-lt-spin { to { transform: rotate(360deg); } }
+}
+
+/* PolicyRules */
+.sl-rules { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.sl-rules li { display: grid; grid-template-columns: 28px minmax(0, 1fr) auto; gap: 14px; align-items: baseline; padding: 14px 0; border-bottom: 1px solid var(--line); }
+.sl-rules-n { color: var(--ink-muted); font-size: 14px; }
+.sl-rules-text { font-size: 19px; line-height: 26px; color: var(--ink); }
+.sl-rules-gen { font-family: var(--font-mono); font-size: 12px; font-weight: 500; color: var(--accent); background: var(--accent-soft); padding: 3px 8px; border-radius: var(--radius-sm); white-space: nowrap; }

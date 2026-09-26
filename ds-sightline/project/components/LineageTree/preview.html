@@ -1,0 +1,26 @@
+<!-- @dsCard group="Evolution" height=200 subtitle="Kept on the line, rejected and skipped as dead ends" -->
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>LineageTree</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&display=swap">
+</head>
+<body>
+<div id="root" class="sl-stage"></div>
+<script>
+  var S = window.Sightline, h = React.createElement;
+  // Example data.
+  var gens = [
+    { gen: 0, parent: null, status: 'baseline', label: '30.5' },
+    { gen: 1, parent: 0, status: 'kept', label: '45.9' },
+    { gen: 2, parent: 1, status: 'rejected', label: '−4.1 val' },
+    { gen: 3, parent: 1, status: 'kept', label: '55.2' },
+    { gen: 4, parent: 3, status: 'kept', label: '63.8' },
+    { gen: 5, parent: 4, status: 'kept', label: '72.6' },
+    { gen: 6, parent: 5, status: 'skipped', label: 'memory' }
+  ];
+  ReactDOM.createRoot(document.getElementById('root')).render(h(S.LineageTree, { gens: gens, total: 8, current: 7, width: 640, height: 150 }));
+</script>
+</body>
+</html>

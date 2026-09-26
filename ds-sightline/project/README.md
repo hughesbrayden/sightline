@@ -1,8 +1,34 @@
 # Sightline
 
-Sightline is the interface for a harness that teaches itself what a fast decision model should see. A hidden pixel picture gets decided one pixel at a time by Jev, which only sees 12 pieces of evidence per pixel. The harness evolves how those 12 slots are filled, and the picture sharpens generation by generation. "Sightline" is a working name.
+Sightline is the interface for a harness that teaches itself what a fast decision model should see. After a hurricane, Jev classifies every city block into one of 12 damage states from messy reports (911 calls, social posts, drone passes, utility feeds, agency surveys), seeing only 12 lines per block. The harness evolves how those lines are chosen, storm after storm, and the damage map sharpens. "Sightline" is a working name.
 
-The look is a lab instrument: quiet, precise chrome with first-class numbers, so the colorful pictures are the only loud thing on screen. Everything here serves three surfaces: the live dashboard, the pitch deck and the demo video.
+The look is a lab instrument: quiet, precise chrome with first-class numbers, so the map is the loudest thing on screen. Everything here serves two surfaces: the live demo and the backup video.
+
+## The spine: the harness evolves, not the model
+
+Jev is frozen and the data doesn't change. The storm is only the environment where fitness is measured. Screens name each part of the loop the same way:
+
+| Evolution | In the harness | On screen |
+| --- | --- | --- |
+| Variation | The curator proposes one change, with a hypothesis and a prediction | Generation card |
+| Fitness | A backtest on past storms, scored against finished assessments | Backtest score and map |
+| Selection | The gate keeps a change only if the validation town improves | Kept / rejected verdict |
+| Heredity | Kept changes stack into the lineage | `LineageTree` main line |
+| Memory | Rejected ideas are remembered and never retried | "Skipped: too close to gen 2" |
+| Adaptation | The frozen policy on tonight's storm, scored once | Before/after replay |
+
+- Say "generation", never "run" or "epoch". Generation 0 is the unevolved harness.
+- The final policy is shown as plain rules (`PolicyRules`), each tagged with the generation that found it. That card is the product.
+- Why there's a gate, in one line: an ungated loop climbed from 46% to 93% on its own storms while held-out fell from 50% to 45%.
+
+## Damage maps
+
+- A map is a 32×32 grid of blocks (`DamageMap`), with streets as 1px gaps, `map-water` for rivers and harbor, and `map-park` for open land. Scenery is never scored.
+- **On damage maps, color means severity.** Fills run `dmg-intact` → `dmg-minor` → `dmg-street` → `dmg-home` / `dmg-wind` → `dmg-major` → `dmg-destroyed`. Flood blues and wind orange stay separable for color-blind viewers.
+- Services are glyphs in `map-glyph` on `dmg-intact`, never extra fills: plus = hospital operating, triangle = shelter open, cross = road blocked, bolt = power out. Fire is a `map-fire` dot on `dmg-major`.
+- Rescue-critical states are homes flooded, major damage, destroyed and fire. Lead with how many of those Jev found ("148 of 171") before overall accuracy.
+- Scores are always "blind first look" (the policy before this storm's assessment arrived) or "after tuning". Label which.
+- The `px-*` palette belongs to the earlier pixel-puzzle mockups; don't use it on maps.
 
 ## Voice
 
@@ -69,5 +95,9 @@ There is no logo yet; set "Sightline" in Archivo 600 where a mark would go. Mark
 - `LineageNode`: one generation's chip in the lineage tree.
 - `ScoreCurve`: training vs held-out by generation, with the baseline.
 - `DiffCard`: one mutation's changes to the four knobs, predicted vs actual.
+- `DamageMap`: a 32×32 block map with severity fills, service glyphs and guess, assessment or difference modes.
+- `DamageLegend`: the 12 damage states and how each is drawn.
+- `LineageTree`: the harness's evolution; kept changes on the main line, rejected and memory-skipped ideas as dead ends.
+- `PolicyRules`: the evolved policy as plain rules, each tagged with the generation that found it.
 
 Example data in the previews is illustrative, not measured.

@@ -1,0 +1,22 @@
+<!-- @dsCard group="Evolution" height=300 subtitle="What the harness learned, with provenance" -->
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>PolicyRules</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;600&family=JetBrains+Mono:wght@400;500&display=swap">
+</head>
+<body>
+<div id="root" class="sl-stage" style="max-width: 640px;"></div>
+<script>
+  var S = window.Sightline, h = React.createElement;
+  // Example data.
+  ReactDOM.createRoot(document.getElementById('root')).render(h(S.PolicyRules, { rules: [
+    { text: 'Swap the utility feed back to latitude, longitude.', gen: 1 },
+    { text: 'Translate the fire-department and city damage scales.', gen: 3 },
+    { text: 'Drop accounts that never match a drone pass.', gen: 4 },
+    { text: 'Pull neighbors’ flood reports only, within 200 m.', gen: 5 }
+  ] }));
+</script>
+</body>
+</html>

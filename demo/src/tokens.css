@@ -1,0 +1,82 @@
+/* Sightline tokens as CSS variables, compiled from tokens.json. */
+:root, [data-theme="light"] {
+  --surface: #f4f5f3;
+  --surface-raised: #ffffff;
+  --surface-sunken: #e9ece9;
+  --line: #d8dcd9;
+  --line-strong: #848d89;
+  --ink: #15191b;
+  --ink-muted: #59626a;
+  --accent: #0a6c86;
+  --accent-soft: #ddeff3;
+  --on-accent: #ffffff;
+  --good: #1d7544;
+  --good-soft: #ddf1e4;
+  --warn: #8a5900;
+  --warn-soft: #f7ecd6;
+  --critical: #b0271f;
+  --critical-soft: #f8e1de;
+  --series-train: var(--accent);
+  --series-heldout: #a44a14;
+  --series-baseline: var(--ink-muted);
+  --px-void: #1b1c20;
+  --px-paper: #f2efe8;
+  --px-red: #d63a32;
+  --px-orange: #f5a13a;
+  --px-yellow: #f3cd3b;
+  --px-green: #3d9a44;
+  --px-blue: #2350c8;
+  --px-brown: #5e3a22;
+  --dmg-intact: #e6e9e4;
+  --dmg-minor: #efd88f;
+  --dmg-street: #9fc4e6;
+  --dmg-home: #2c67b0;
+  --dmg-wind: #ea9a4c;
+  --dmg-major: #c6422a;
+  --dmg-destroyed: #551a0f;
+  --map-water: #d3dee4;
+  --map-park: #dbe5d3;
+  --map-glyph: #15191b;
+  --map-fire: #ffd166;
+}
+[data-theme="dark"] {
+  color-scheme: dark;
+  --surface: #0f1214;
+  --surface-raised: #181c1f;
+  --surface-sunken: #0a0c0d;
+  --line: #283034;
+  --line-strong: #66727a;
+  --ink: #e7ebe9;
+  --ink-muted: #98a1a6;
+  --accent: #56c0d8;
+  --accent-soft: #0e2f38;
+  --on-accent: #0f1214;
+  --good: #5bc98a;
+  --good-soft: #10301e;
+  --warn: #e7b24a;
+  --warn-soft: #33260a;
+  --critical: #f07a70;
+  --critical-soft: #3a1512;
+  --series-train: var(--accent);
+  --series-heldout: #f29a5e;
+  --series-baseline: var(--ink-muted);
+  --dmg-intact: #2a3134;
+  --map-water: #16232a;
+  --map-park: #1c2a20;
+  --map-glyph: #e7ebe9;
+}
+:root {
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-4: 16px;
+  --space-6: 24px;
+  --cell: 12px;
+  --radius-cell: 0;
+  --radius-sm: 2px;
+  --radius-md: 6px;
+  --radius-lg: 10px;
+  --conf-floor: 0.15;
+  --font-display: "Archivo", "Arial Narrow", system-ui, sans-serif;
+  --font-sans: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, Menlo, Consolas, monospace;
+}

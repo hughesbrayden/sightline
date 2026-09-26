@@ -1,0 +1,1563 @@
+<title>Sightline Demo</title>
+<meta name="description" content="Click-through demo of Sightline: a frozen model, a harness that evolves how it reads hurricane reports.">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@75..125,500..700&family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@300;400;500&display=swap">
+<style>
+:root { color-scheme: light; }
+/* Sightline tokens as CSS variables, compiled from tokens.json. */
+:root {
+  --surface: #f4f5f3;
+  --surface-raised: #ffffff;
+  --surface-sunken: #e9ece9;
+  --line: #d8dcd9;
+  --line-strong: #848d89;
+  --ink: #15191b;
+  --ink-muted: #59626a;
+  --accent: #0a6c86;
+  --accent-soft: #ddeff3;
+  --on-accent: #ffffff;
+  --good: #1d7544;
+  --good-soft: #ddf1e4;
+  --warn: #8a5900;
+  --warn-soft: #f7ecd6;
+  --critical: #b0271f;
+  --critical-soft: #f8e1de;
+  --series-train: var(--accent);
+  --series-heldout: #a44a14;
+  --series-baseline: var(--ink-muted);
+  --px-void: #1b1c20;
+  --px-paper: #f2efe8;
+  --px-red: #d63a32;
+  --px-orange: #f5a13a;
+  --px-yellow: #f3cd3b;
+  --px-green: #3d9a44;
+  --px-blue: #2350c8;
+  --px-brown: #5e3a22;
+  --dmg-intact: #e6e9e4;
+  --dmg-minor: #efd88f;
+  --dmg-street: #9fc4e6;
+  --dmg-home: #2c67b0;
+  --dmg-wind: #ea9a4c;
+  --dmg-major: #c6422a;
+  --dmg-destroyed: #551a0f;
+  --map-water: #d3dee4;
+  --map-park: #dbe5d3;
+  --map-glyph: #15191b;
+  --map-fire: #ffd166;
+}
+:root {
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-4: 16px;
+  --space-6: 24px;
+  --cell: 12px;
+  --radius-cell: 0;
+  --radius-sm: 2px;
+  --radius-md: 6px;
+  --radius-lg: 10px;
+  --conf-floor: 0.15;
+  --font-display: "Archivo", "Arial Narrow", system-ui, sans-serif;
+  --font-sans: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, Menlo, Consolas, monospace;
+}
+/* Sightline components. Tokens come from tokens.css; fonts from Google Fonts (see README). */
+body { margin: 0; font-family: var(--font-sans); background: var(--surface); color: var(--ink); }
+
+.sl-stage { display: flex; flex-wrap: wrap; gap: var(--space-4); align-items: flex-start; padding: var(--space-4); }
+.sl-num { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+.sl-muted { color: var(--ink-muted); }
+.sl-small { font-size: 13px; line-height: 18px; }
+.sl-up { color: var(--good); }
+.sl-down { color: var(--critical); }
+.sl-label {
+  font-family: var(--font-sans); font-size: 11px; line-height: 16px; font-weight: 600;
+  letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-muted);
+}
+
+/* PuzzleGrid */
+.sl-puzzle { margin: 0; display: inline-flex; flex-direction: column; gap: var(--space-2); }
+.sl-grid { display: grid; width: max-content; background: var(--surface-sunken); border: 1px solid var(--line); }
+.sl-cell { border-radius: var(--radius-cell); }
+.sl-cell-wrong { box-shadow: inset 0 0 0 1px var(--ink), inset 0 0 0 2px var(--surface-raised); }
+.sl-puzzle-cap { display: flex; justify-content: space-between; align-items: baseline; gap: var(--space-2); font-size: 13px; line-height: 18px; }
+
+/* StatusBadge */
+.sl-badge {
+  display: inline-flex; align-items: center; gap: 6px; height: 22px; padding: 0 var(--space-2);
+  border-radius: var(--radius-sm); font-family: var(--font-sans); font-size: 12px; font-weight: 600;
+  line-height: 1; white-space: nowrap; background: var(--surface-sunken); color: var(--ink-muted);
+}
+.sl-badge::before { content: ""; width: 6px; height: 6px; background: currentColor; flex: none; }
+.sl-badge-passed { background: var(--good-soft); color: var(--good); }
+.sl-badge-rejected { background: var(--critical-soft); color: var(--critical); }
+.sl-badge-denied { background: var(--critical-soft); color: var(--critical); }
+.sl-badge-denied::before { background: transparent; box-shadow: inset 0 0 0 1.5px currentColor; width: 8px; height: 8px; }
+.sl-badge-running { background: var(--accent-soft); color: var(--accent); }
+.sl-badge-skipped::before { background: transparent; box-shadow: inset 0 0 0 1.5px currentColor; }
+
+/* LineageNode */
+.sl-node {
+  display: inline-grid; grid-template-columns: 1fr auto; column-gap: var(--space-2); row-gap: 2px;
+  align-items: baseline; min-width: 112px; padding: var(--space-2) 12px; box-sizing: border-box;
+  border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--surface-raised);
+  color: var(--ink); font: inherit; text-align: left;
+}
+button.sl-node { cursor: pointer; }
+button.sl-node:hover { border-color: var(--line-strong); }
+.sl-node:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.sl-node-score { font-size: 18px; line-height: 24px; }
+.sl-node-delta { font-size: 13px; line-height: 18px; justify-self: end; }
+.sl-node-mark { width: 8px; height: 8px; justify-self: end; align-self: center; }
+.sl-mark-accepted { background: var(--good); }
+.sl-mark-rejected { background: transparent; box-shadow: inset 0 0 0 1.5px var(--critical); }
+.sl-mark-pending { background: var(--accent); }
+.sl-mark-skipped { background: transparent; box-shadow: inset 0 0 0 1.5px var(--ink-muted); }
+.sl-node-rejected, .sl-node-skipped { border-style: dashed; border-color: var(--line-strong); background: var(--surface); }
+.sl-node-rejected .sl-node-score, .sl-node-skipped .sl-node-score { color: var(--ink-muted); }
+.sl-node-pending { border-color: var(--accent); }
+.sl-node-active { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+
+/* ScoreCurve */
+.sl-curve { margin: 0; display: inline-flex; flex-direction: column; gap: var(--space-2); max-width: 100%; }
+.sl-curve-svg { display: block; max-width: 100%; height: auto; }
+.sl-curve-svg text { font-family: var(--font-mono); font-size: 10px; fill: var(--ink-muted); }
+.sl-curve-grid { stroke: var(--line); stroke-width: 1; }
+.sl-base { stroke: var(--series-baseline); stroke-width: 1.5; stroke-dasharray: 4 4; }
+.sl-line-train, .sl-line-heldout { fill: none; stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+.sl-line-train { stroke: var(--series-train); }
+.sl-line-heldout { stroke: var(--series-heldout); }
+.sl-dot-train { fill: var(--series-train); }
+.sl-dot-heldout { fill: var(--series-heldout); }
+.sl-curve-svg .sl-end-train { fill: var(--series-train); font-weight: 600; }
+.sl-curve-svg .sl-end-heldout { fill: var(--series-heldout); font-weight: 600; }
+.sl-legend { display: flex; flex-wrap: wrap; gap: var(--space-4); font-size: 12px; line-height: 16px; color: var(--ink-muted); }
+.sl-key { display: inline-flex; align-items: center; gap: 6px; }
+.sl-key::before { content: ""; width: 14px; height: 0; border-top: 2px solid currentColor; }
+.sl-key-train::before { border-color: var(--series-train); }
+.sl-key-heldout::before { border-color: var(--series-heldout); }
+.sl-key-base::before { border-top: 2px dashed var(--series-baseline); }
+
+/* DiffCard */
+.sl-diff {
+  display: grid; gap: 12px; max-width: 460px; box-sizing: border-box; padding: var(--space-4);
+  border: 1px solid var(--line); border-radius: var(--radius-lg); background: var(--surface-raised); color: var(--ink);
+}
+.sl-diff-head { display: flex; justify-content: space-between; align-items: center; gap: var(--space-2); }
+.sl-diff-title { font-size: 15px; line-height: 22px; font-weight: 600; }
+.sl-diff-list { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-2); }
+.sl-diff-row { display: grid; grid-template-columns: 84px 14px 1fr; gap: var(--space-2); align-items: baseline; }
+.sl-diff-text { font-size: 14px; line-height: 20px; }
+.sl-op { font-size: 14px; font-weight: 600; text-align: center; }
+.sl-op-add { color: var(--good); }
+.sl-op-remove { color: var(--critical); }
+.sl-op-change { color: var(--accent); }
+.sl-diff-foot { display: flex; flex-wrap: wrap; gap: var(--space-4); padding-top: 12px; border-top: 1px solid var(--line); font-size: 13px; }
+.sl-diff-foot > span { display: inline-flex; align-items: baseline; gap: 6px; }
+
+@media (prefers-reduced-motion: no-preference) {
+  .sl-cell { transition: opacity 240ms ease-out, background-color 240ms ease-out; }
+}
+
+/* ScoreCurve reference lines */
+.sl-ref { stroke: var(--ink-muted); stroke-width: 1; stroke-dasharray: 2 4; }
+.sl-curve-svg .sl-ref-label { fill: var(--ink-muted); font-size: 10px; }
+
+/* DamageMap */
+.sl-map { display: grid; width: max-content; background: var(--map-water); padding: 1px; }
+.sl-map-pick { cursor: crosshair; }
+.sl-mcell { position: relative; }
+.sl-mcell-wrong { box-shadow: inset 0 0 0 1px var(--ink), inset 0 0 0 2px var(--surface-raised); }
+.sl-mcell-sel { outline: 2px solid var(--accent); outline-offset: 1px; z-index: 1; }
+.sl-glyph { position: absolute; inset: 22%; display: block; }
+.sl-glyph-hospital {
+  background: linear-gradient(var(--map-glyph), var(--map-glyph)) center / 100% 30% no-repeat,
+              linear-gradient(var(--map-glyph), var(--map-glyph)) center / 30% 100% no-repeat;
+}
+.sl-glyph-shelter { background: var(--map-glyph); clip-path: polygon(50% 4%, 96% 94%, 4% 94%); }
+.sl-glyph-road {
+  background: linear-gradient(45deg, transparent 40%, var(--map-glyph) 40% 60%, transparent 60%),
+              linear-gradient(-45deg, transparent 40%, var(--map-glyph) 40% 60%, transparent 60%);
+}
+.sl-glyph-power { background: var(--map-glyph); clip-path: polygon(58% 0, 18% 56%, 46% 56%, 36% 100%, 82% 40%, 54% 40%, 70% 0); }
+.sl-glyph-fire { inset: 28%; border-radius: 50%; background: var(--map-fire); }
+
+/* DamageLegend */
+.sl-legend-map { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px 16px; font-size: 12px; line-height: 16px; color: var(--ink); }
+.sl-legend-one { grid-template-columns: minmax(0, 1fr); }
+.sl-legend-map li { display: flex; align-items: center; gap: 8px; }
+.sl-swatch { position: relative; width: 14px; height: 14px; flex: none; box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.06); }
+.sl-crit { margin-left: auto; font-size: 10px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--critical); }
+
+/* LineageTree */
+.sl-lt { display: block; max-width: 100%; height: auto; overflow: visible; }
+.sl-lt-edge { stroke: var(--accent); stroke-width: 2; }
+.sl-lt-branch { fill: none; stroke-width: 1.5; stroke-dasharray: 4 4; }
+.sl-lt-branch-rejected { stroke: var(--critical); }
+.sl-lt-branch-skipped { stroke: var(--line-strong); }
+.sl-lt-node circle { stroke-width: 2; }
+.sl-lt-baseline circle { fill: var(--ink); stroke: var(--ink); }
+.sl-lt-kept circle { fill: var(--accent); stroke: var(--accent); }
+.sl-lt-rejected circle { fill: var(--surface-raised); stroke: var(--critical); stroke-dasharray: 3 3; }
+.sl-lt-skipped circle { fill: var(--surface-raised); stroke: var(--line-strong); }
+.sl-lt .sl-lt-num { font-family: var(--font-mono); font-size: 11px; font-weight: 500; }
+.sl-lt-baseline .sl-lt-num, .sl-lt-kept .sl-lt-num { fill: var(--surface-raised); }
+.sl-lt-rejected .sl-lt-num { fill: var(--critical); }
+.sl-lt-skipped .sl-lt-num { fill: var(--ink-muted); }
+.sl-lt .sl-lt-label { font-family: var(--font-mono); font-size: 11px; fill: var(--ink-muted); }
+.sl-lt-kept .sl-lt-label { fill: var(--ink); }
+.sl-lt-rejected .sl-lt-label { fill: var(--critical); }
+.sl-lt-current circle { fill: var(--surface-raised); stroke: var(--series-heldout); stroke-width: 2; stroke-dasharray: 4 3; }
+.sl-lt-current .sl-lt-num { fill: var(--series-heldout); font-family: var(--font-mono); font-size: 11px; }
+@media (prefers-reduced-motion: no-preference) {
+  .sl-lt-current circle { animation: sl-lt-spin 1.6s linear infinite; transform-box: fill-box; transform-origin: center; }
+  @keyframes sl-lt-spin { to { transform: rotate(360deg); } }
+}
+
+/* PolicyRules */
+.sl-rules { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.sl-rules li { display: grid; grid-template-columns: 28px minmax(0, 1fr) auto; gap: 14px; align-items: baseline; padding: 14px 0; border-bottom: 1px solid var(--line); }
+.sl-rules-n { color: var(--ink-muted); font-size: 14px; }
+.sl-rules-text { font-size: 19px; line-height: 26px; color: var(--ink); }
+.sl-rules-gen { font-family: var(--font-mono); font-size: 12px; font-weight: 500; color: var(--accent); background: var(--accent-soft); padding: 3px 8px; border-radius: var(--radius-sm); white-space: nowrap; }
+/* Page shell: a fixed 1440×964 stage scaled to fit any window. Light only, by design. */
+html, body { height: 100%; }
+body { margin: 0; background: #dfe3df; color: var(--ink); font-family: var(--font-sans); overflow: hidden; }
+#frame { height: 100%; display: flex; align-items: center; justify-content: center; }
+#wrap { position: relative; overflow: hidden; box-shadow: 0 1px 0 rgba(0,0,0,0.04); }
+#stage { position: absolute; left: 0; top: 0; width: 1440px; height: 964px; transform-origin: 0 0; background: var(--surface-raised); }
+
+.app { width: 1440px; height: 964px; display: flex; flex-direction: column; }
+.screen { width: 1440px; height: 900px; box-sizing: border-box; padding: 28px 48px 28px; display: flex; flex-direction: column; gap: 24px; background: var(--surface-raised); }
+.bar { display: flex; align-items: center; justify-content: space-between; gap: 24px; padding-bottom: 16px; border-bottom: 1px solid var(--line); }
+.brand { display: flex; align-items: baseline; gap: 14px; }
+.wordmark { font-family: var(--font-display); font-size: 20px; font-weight: 600; font-stretch: 87.5%; letter-spacing: -0.01em; }
+.body { flex-grow: 1; min-height: 0; display: flex; gap: 56px; }
+.panel { flex-grow: 1; min-width: 0; display: flex; flex-direction: column; gap: 22px; }
+.panel-foot { margin-top: auto; display: flex; flex-direction: column; gap: 18px; }
+
+.row { display: flex; align-items: center; }
+.col { display: flex; flex-direction: column; }
+.between { justify-content: space-between; }
+.end { align-items: flex-end; }
+.grow { flex-grow: 1; min-width: 0; }
+.gap2 { gap: 2px; } .gap6 { gap: 6px; } .gap8 { gap: 8px; } .gap10 { gap: 10px; } .gap12 { gap: 12px; } .gap16 { gap: 16px; } .gap40 { gap: 40px; }
+.push { margin-left: auto; }
+.push-bottom { margin-top: auto; }
+.right { text-align: right; }
+.pad8 { padding-bottom: 8px; }
+
+.muted { color: var(--ink-muted); }
+.small { font-size: 13px; line-height: 19px; }
+.xs { font-size: 12px; line-height: 17px; }
+.tiny { font-size: 11px; line-height: 15px; }
+.strong { font-weight: 600; }
+.normal { font-weight: 400; }
+.mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+.h3 { font-size: 22px; line-height: 28px; }
+
+.intro { display: flex; flex-direction: column; gap: 8px; }
+.intro h2 { margin: 0; font-size: 28px; line-height: 34px; font-weight: 600; letter-spacing: -0.01em; text-wrap: balance; }
+.lead { margin: 0; font-size: 15px; line-height: 23px; max-width: 560px; }
+
+.stats { display: flex; gap: 40px; padding: 16px 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+.stat { display: flex; flex-direction: column; gap: 4px; }
+.num { font-weight: 300; letter-spacing: -0.02em; }
+.num.md { font-size: 26px; line-height: 30px; }
+.num.xl { font-size: 42px; line-height: 46px; }
+.num.xxl { font-size: 60px; line-height: 62px; letter-spacing: -0.03em; }
+.unit { font-size: 18px; color: var(--ink-muted); letter-spacing: 0; }
+
+.pill { display: inline-flex; align-items: center; gap: 8px; height: 28px; padding: 0 12px; border-radius: 14px; font-size: 12px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; }
+.pill-dot { width: 7px; height: 7px; background: currentColor; }
+.pill-live { background: var(--accent-soft); color: var(--accent); }
+.pill-review { background: var(--surface-sunken); color: var(--ink); }
+.pill-training { background: var(--warn-soft); color: var(--series-heldout); }
+.tag { display: inline-flex; align-items: center; gap: 8px; font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; }
+.tag-live { color: var(--accent); }
+.tag-train { color: var(--series-heldout); }
+
+.mapstage { position: relative; width: 675px; flex: none; }
+.pin { position: absolute; pointer-events: none; }
+.mark { position: absolute; transform: translate(-50%, -50%); width: 22px; height: 22px; border-radius: 11px; display: flex; align-items: center; justify-content: center; background: var(--ink); color: var(--surface-raised); font-family: var(--font-mono); font-size: 12px; box-shadow: 0 0 0 2px var(--surface-raised); pointer-events: none; }
+.mark-good, .mark.good { background: var(--good); }
+.mark.static { position: static; transform: none; flex: none; box-shadow: none; }
+.hint { position: absolute; left: 0; bottom: 0; font-size: 12px; color: var(--ink-muted); background: var(--surface-raised); padding: 2px 0; }
+.blockcard { position: absolute; left: 16px; bottom: 44px; width: 360px; box-sizing: border-box; padding: 14px 16px; display: flex; flex-direction: column; gap: 8px; background: var(--surface-raised); border: 1px solid var(--line-strong); border-radius: 10px; font-size: 14px; z-index: 3; }
+.blockcard .x { margin-left: 8px; width: 26px; height: 26px; border: 0; border-radius: 13px; background: var(--surface-sunken); color: var(--ink); font-size: 16px; line-height: 1; cursor: pointer; }
+.reports { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 4px; }
+.reports li { display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: 10px; font-size: 12px; line-height: 17px; }
+
+.counts { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); padding: 16px 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+.feed { display: flex; flex-direction: column; }
+.feedrow { display: grid; grid-template-columns: 44px 56px minmax(0, 1fr) 70px; gap: 10px; align-items: baseline; padding: 9px 0; border-bottom: 1px solid var(--line); font-size: 13px; line-height: 18px; animation: rise 300ms ease-out; }
+.flag { font-size: 11px; font-weight: 600; color: var(--warn); text-align: right; }
+.trow { display: grid; grid-template-columns: 22px 60px minmax(0, 1fr) 130px 44px; gap: 10px; align-items: baseline; padding: 8px 0; border-bottom: 1px solid var(--line); font-size: 13px; animation: rise 300ms ease-out; }
+.misread { display: grid; grid-template-columns: 22px minmax(0, 1fr); gap: 12px; align-items: start; }
+.compare { display: flex; flex-direction: column; border-top: 1px solid var(--line); }
+.crow { display: grid; grid-template-columns: minmax(0, 1fr) 120px 120px; gap: 12px; align-items: baseline; padding: 12px 0; border-bottom: 1px solid var(--line); font-size: 14px; }
+.crow.head { font-size: 12px; color: var(--ink-muted); padding: 10px 0; }
+.crow.head span { text-align: right; }
+.crow .before { font-size: 22px; font-weight: 300; text-align: right; color: var(--ink-muted); }
+.crow .after { font-size: 22px; text-align: right; color: var(--good); }
+.ruled { padding: 16px 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+.barrow { display: grid; grid-template-columns: 104px minmax(0, 1fr) 44px; gap: 12px; align-items: center; font-size: 13px; }
+.track { height: 8px; background: var(--surface-sunken); }
+.track div { height: 8px; background: var(--series-train); }
+.facts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; padding-top: 14px; border-top: 1px solid var(--line); font-size: 12px; line-height: 17px; color: var(--ink-muted); }
+
+.tonight { width: 330px; flex: none; align-self: flex-start; box-sizing: border-box; padding: 16px; display: flex; flex-direction: column; gap: 12px; background: var(--surface-sunken); border-radius: 10px; }
+.logrow { display: grid; grid-template-columns: 44px minmax(0, 1fr) 120px; gap: 10px; align-items: baseline; padding: 7px 8px; border-bottom: 1px solid var(--line); }
+.logrow.current { background: var(--warn-soft); }
+.logrow > span:last-child { text-align: right; }
+
+.veil { position: absolute; left: 0; top: 0; width: 675px; height: 675px; display: flex; align-items: center; justify-content: center; background: rgba(255, 255, 255, 0.72); }
+.startcard { width: 380px; box-sizing: border-box; padding: 28px; display: flex; flex-direction: column; gap: 14px; background: var(--surface-raised); border: 1px solid var(--line); border-radius: 10px; }
+.itercard { display: flex; flex-direction: column; gap: 12px; padding: 16px; background: var(--surface-sunken); border-radius: 10px; font-size: 14px; line-height: 21px; }
+.phases { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; }
+.phase { display: flex; flex-direction: column; gap: 5px; }
+.ptrack { height: 4px; background: var(--line); }
+.ptrack div { height: 4px; transition: width 180ms linear; }
+
+button { font: inherit; }
+button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.cta { align-self: flex-start; height: 44px; padding: 0 20px; border: 0; border-radius: 6px; background: var(--accent); color: var(--on-accent); font-size: 15px; font-weight: 600; cursor: pointer; }
+.cta:hover { filter: brightness(1.08); }
+.cta.wide { align-self: stretch; }
+.ghost { height: 36px; padding: 0 16px; border: 1px solid var(--line-strong); border-radius: 6px; background: var(--surface-raised); color: var(--ink); font-size: 13px; font-weight: 500; cursor: pointer; }
+.dark { height: 36px; padding: 0 18px; border: 0; border-radius: 6px; background: var(--ink); color: var(--surface-raised); font-size: 13px; font-weight: 600; cursor: pointer; }
+button:disabled { opacity: 0.4; cursor: default; }
+
+.presenter { height: 64px; box-sizing: border-box; padding: 0 48px; display: flex; align-items: center; justify-content: space-between; gap: 24px; background: var(--surface-sunken); border-top: 1px solid var(--line); }
+.seg { display: flex; gap: 4px; padding: 3px; background: var(--surface-raised); border: 1px solid var(--line); border-radius: 8px; }
+.seg button { height: 34px; padding: 0 14px; border: 0; border-radius: 6px; background: transparent; color: var(--ink-muted); font-size: 13px; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
+.seg button.on { background: var(--ink); color: var(--surface-raised); }
+.live-dot { width: 7px; height: 7px; border-radius: 4px; background: var(--series-heldout); animation: blink 1s steps(2) infinite; }
+.steps { display: flex; gap: 6px; }
+.step { height: 34px; min-width: 34px; padding: 0 10px; border: 1px solid var(--line); border-radius: 17px; background: var(--surface-raised); color: var(--ink); font-size: 12px; font-weight: 500; cursor: pointer; white-space: nowrap; }
+.step.on { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+
+@keyframes rise { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+@keyframes blink { 50% { opacity: 0.2; } }
+@media (prefers-reduced-motion: reduce) {
+  .feedrow, .trow { animation: none; }
+  .live-dot { animation: none; }
+  .ptrack div, .sl-cell, .sl-mcell { transition: none; }
+}
+
+/* Evolution re-cut */
+.gap20 { gap: 20px; } .gap24 { gap: 24px; } .body.gap48 { gap: 48px; } .body.gap64 { gap: 64px; }
+.mark-accent { background: var(--accent); }
+.trow.first span { font-weight: 600; }
+.h2 { font-size: 22px; line-height: 28px; font-weight: 600; letter-spacing: -0.01em; }
+.gencard { display: flex; flex-direction: column; gap: 14px; padding: 20px 22px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface-raised); min-height: 236px; box-sizing: border-box; }
+.hyp { font-size: 19px; line-height: 27px; min-height: 54px; }
+.genstats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; padding: 12px 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+.verdict { display: inline-flex; align-items: center; height: 28px; padding: 0 12px; border-radius: 14px; font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; }
+.whygate { width: 483px; box-sizing: border-box; display: flex; flex-direction: column; gap: 4px; padding: 12px 14px; background: var(--surface-sunken); border-radius: 8px; }
+.intro .big { font-family: var(--font-display); font-size: 48px; line-height: 50px; font-stretch: 87.5%; letter-spacing: -0.02em; }
+.pitch { margin: auto 0 0; font-family: var(--font-display); font-size: 26px; line-height: 33px; font-weight: 500; font-stretch: 87.5%; max-width: 780px; text-wrap: balance; }
+</style>
+<div id="frame"><div id="wrap"><div id="stage" role="application" aria-label="Sightline demo"></div></div></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.3.1/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.3.1/umd/react-dom.production.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/htm@3.1.1/dist/htm.umd.js"></script>
+<script>
+/* @ds-bundle: {"format":4,"namespace":"Sightline","components":[{"name":"PuzzleGrid"},{"name":"StatusBadge"},{"name":"LineageNode"},{"name":"ScoreCurve"},{"name":"DiffCard"},{"name":"DamageMap"},{"name":"DamageLegend"},{"name":"LineageTree"},{"name":"PolicyRules"}]} */
+(function () {
+  var React = window.React;
+  var h = React.createElement;
+
+  var PALETTE = ["void", "paper", "red", "orange", "yellow", "green", "blue", "brown"];
+
+  function cx() {
+    return Array.prototype.filter.call(arguments, Boolean).join(" ");
+  }
+
+  function pixelColor(c) {
+    var key = typeof c === "number" ? PALETTE[c] : c;
+    return "var(--px-" + (key || "void") + ")";
+  }
+
+  function signed(d, digits) {
+    var n = Math.abs(d).toFixed(digits == null ? 1 : digits);
+    if (d > 0) return "+" + n;
+    if (d < 0) return "−" + n;
+    return "±" + n;
+  }
+
+  // ---------- PuzzleGrid ----------
+  function PuzzleGrid(props) {
+    var size = props.size || 16;
+    var cells = props.cells || [];
+    var conf = props.confidence;
+    var truth = props.truth;
+    var cellSize = props.cellSize || 12;
+    var showErrors = !!props.showErrors;
+    var floor = props.confidenceFloor == null ? 0.15 : props.confidenceFloor;
+    var items = [];
+    for (var i = 0; i < size * size; i++) {
+      var c = cells[i];
+      var wrong = showErrors && truth && truth[i] !== c;
+      var o = conf ? floor + (1 - floor) * Math.max(0, Math.min(1, conf[i])) : 1;
+      items.push(h("div", {
+        key: i,
+        className: cx("sl-cell", wrong && "sl-cell-wrong"),
+        style: { background: pixelColor(c), opacity: wrong ? 1 : o }
+      }));
+    }
+    var grid = h("div", {
+      className: "sl-grid",
+      role: "img",
+      "aria-label": props.label || size + " by " + size + " puzzle",
+      style: {
+        gridTemplateColumns: "repeat(" + size + ", " + cellSize + "px)",
+        gridAutoRows: cellSize + "px"
+      }
+    }, items);
+    var cap = (props.caption || props.meta) && h("figcaption", { className: "sl-puzzle-cap" },
+      props.caption && h("span", { className: "sl-label" }, props.caption),
+      props.meta && h("span", { className: "sl-num sl-muted" }, props.meta));
+    return h("figure", { className: cx("sl-puzzle", props.className) }, grid, cap);
+  }
+
+  // ---------- StatusBadge ----------
+  var BADGE_TEXT = {
+    passed: "Gate passed",
+    rejected: "Rejected",
+    skipped: "Skipped · seen before",
+    denied: "Read denied",
+    running: "Running"
+  };
+
+  function StatusBadge(props) {
+    var kind = props.kind || "running";
+    return h("span", { className: cx("sl-badge", "sl-badge-" + kind, props.className) },
+      props.children || BADGE_TEXT[kind]);
+  }
+
+  // ---------- LineageNode ----------
+  function LineageNode(props) {
+    var status = props.status || "accepted";
+    var inner = [
+      h("span", { key: "g", className: "sl-label" }, "Gen " + props.gen),
+      h("span", { key: "m", className: cx("sl-node-mark", "sl-mark-" + status), "aria-label": status }),
+      h("span", { key: "s", className: "sl-num sl-node-score" },
+        props.score == null ? "—" : (props.score * 100).toFixed(1)),
+      h("span", {
+        key: "d",
+        className: cx("sl-num", "sl-node-delta",
+          props.delta > 0 ? "sl-up" : props.delta < 0 ? "sl-down" : "sl-muted")
+      }, props.delta == null ? (status === "pending" ? "running" : "") : signed(props.delta * 100))
+    ];
+    var cls = cx("sl-node", "sl-node-" + status, props.active && "sl-node-active", props.className);
+    if (props.onClick) {
+      return h("button", { type: "button", className: cls, onClick: props.onClick, "aria-pressed": !!props.active }, inner);
+    }
+    return h("div", { className: cls }, inner);
+  }
+
+  // ---------- ScoreCurve ----------
+  function lastIndex(a) {
+    for (var i = a.length - 1; i >= 0; i--) if (a[i] != null) return i;
+    return -1;
+  }
+
+  function ScoreCurve(props) {
+    var train = props.train || [];
+    var heldout = props.heldout || [];
+    var refs = props.refs || [];
+    var width = props.width || 360;
+    var height = props.height || 150;
+    var min = props.min == null ? 0.4 : props.min;
+    var max = props.max == null ? 1 : props.max;
+    var pad = { l: 34, r: 48, t: 10, b: 22 };
+    var n = Math.max(train.length, heldout.length, (props.xLabels || []).length, 2);
+    var iw = width - pad.l - pad.r;
+    var ih = height - pad.t - pad.b;
+    function x(i) { return pad.l + (i / (n - 1)) * iw; }
+    function y(v) { return pad.t + (1 - (v - min) / (max - min)) * ih; }
+    function segments(a, cls) {
+      var out = [], cur = [];
+      a.forEach(function (v, i) {
+        if (v == null) { if (cur.length > 1) out.push(cur); cur = []; return; }
+        cur.push(x(i).toFixed(1) + "," + y(v).toFixed(1));
+      });
+      if (cur.length > 1) out.push(cur);
+      return out.map(function (p, k) { return h("polyline", { key: cls + k, className: cls, points: p.join(" ") }); });
+    }
+
+    var ticks = [];
+    for (var t = Math.ceil(min * 10); t <= Math.floor(max * 10); t++) {
+      var v = t / 10;
+      ticks.push(h("g", { key: "t" + t },
+        h("line", { className: "sl-curve-grid", x1: pad.l, x2: width - pad.r, y1: y(v), y2: y(v) }),
+        h("text", { x: pad.l - 6, y: y(v) + 3, textAnchor: "end" }, Math.round(v * 100))));
+    }
+    var last = n - 1;
+    var xl = props.xLabels;
+    var idx = xl && xl.length <= 12 ? xl.map(function (_, i) { return i; }) : [0, Math.round(last / 2), last];
+    var xt = idx.map(function (i) {
+      var label = xl ? xl[i] : "Gen " + i;
+      return h("text", { key: "x" + i, x: x(i), y: height - 6, textAnchor: i === 0 ? "start" : i === last ? "end" : "middle" }, label);
+    });
+
+    var refEls = refs.map(function (r, k) {
+      return h("g", { key: "r" + k },
+        h("line", { className: "sl-ref", x1: pad.l, x2: width - pad.r, y1: y(r.value), y2: y(r.value) }),
+        h("text", { className: "sl-ref-label", x: pad.l + 6, y: y(r.value) - 5 }, r.label + " · " + (r.value * 100).toFixed(0)));
+    });
+
+    var ends = [];
+    var ti = lastIndex(train), hi = lastIndex(heldout);
+    var ty = ti >= 0 ? y(train[ti]) : null;
+    var hy = hi >= 0 ? y(heldout[hi]) : null;
+    if (ty != null && hy != null && ti === hi && Math.abs(ty - hy) < 12) {
+      var mid = (ty + hy) / 2;
+      if (ty <= hy) { ty = mid - 6; hy = mid + 6; } else { ty = mid + 6; hy = mid - 6; }
+    }
+    if (ti >= 0) {
+      ends.push(h("circle", { key: "tc", className: "sl-dot-train", cx: x(ti), cy: y(train[ti]), r: 3.5 }));
+      ends.push(h("text", { key: "tt", className: "sl-end-train", x: x(ti) + 8, y: ty + 3 }, (train[ti] * 100).toFixed(1)));
+    }
+    heldout.forEach(function (v, i) {
+      if (v == null) return;
+      ends.push(h("circle", { key: "hc" + i, className: "sl-dot-heldout", cx: x(i), cy: y(v), r: i === hi ? 3.5 : 2.5 }));
+    });
+    if (hi >= 0) {
+      ends.push(h("text", { key: "ht", className: "sl-end-heldout", x: x(hi) + 8, y: hy + 3 }, (heldout[hi] * 100).toFixed(1)));
+    }
+
+    var svg = h("svg", {
+      className: "sl-curve-svg",
+      viewBox: "0 0 " + width + " " + height,
+      width: width,
+      height: height,
+      role: "img",
+      "aria-label": props.label || "Score by generation"
+    },
+      ticks,
+      refEls,
+      props.baseline != null && h("line", { className: "sl-base", x1: pad.l, x2: width - pad.r, y1: y(props.baseline), y2: y(props.baseline) }),
+      segments(train, "sl-line-train"),
+      segments(heldout, "sl-line-heldout"),
+      ends,
+      xt);
+
+    var legend = h("div", { className: "sl-legend" },
+      train.length > 0 && h("span", { className: "sl-key sl-key-train" }, props.trainLabel || "Training"),
+      heldout.length > 0 && h("span", { className: "sl-key sl-key-heldout" }, props.heldoutLabel || "Held-out"),
+      props.baseline != null && h("span", { className: "sl-key sl-key-base" }, "Baseline"));
+
+    return h("figure", { className: cx("sl-curve", props.className) }, svg, legend);
+  }
+
+  // ---------- DiffCard ----------
+  var OP = { add: "+", remove: "−", change: "~" };
+
+  function DiffCard(props) {
+    var changes = props.changes || [];
+    var rows = changes.map(function (c, i) {
+      var op = c.op || "change";
+      return h("li", { key: i, className: "sl-diff-row" },
+        h("span", { className: "sl-label" }, c.knob),
+        h("span", { className: cx("sl-num", "sl-op", "sl-op-" + op), "aria-label": op }, OP[op]),
+        h("span", { className: "sl-diff-text" }, c.text));
+    });
+    var hasResult = props.predicted != null || props.actual != null;
+    return h("article", { className: cx("sl-diff", props.className) },
+      h("header", { className: "sl-diff-head" },
+        h("span", { className: "sl-diff-title" },
+          h("span", { className: "sl-num" }, "Gen " + props.gen),
+          props.parent != null && h("span", { className: "sl-muted sl-small" }, " from Gen " + props.parent)),
+        props.status && h(StatusBadge, { kind: props.status })),
+      h("ul", { className: "sl-diff-list" }, rows),
+      hasResult && h("footer", { className: "sl-diff-foot" },
+        props.predicted != null && h("span", null,
+          h("span", { className: "sl-label" }, "Predicted "),
+          h("span", { className: "sl-num" }, signed(props.predicted * 100) + " pts")),
+        props.actual != null && h("span", null,
+          h("span", { className: "sl-label" }, "Actual "),
+          h("span", { className: cx("sl-num", props.actual > 0 ? "sl-up" : props.actual < 0 ? "sl-down" : "") },
+            signed(props.actual * 100) + " pts"))));
+  }
+
+  // ---------- DamageMap ----------
+  var STATES = [
+    { key: "intact", label: "Intact", fill: "dmg-intact" },
+    { key: "minor", label: "Minor damage", fill: "dmg-minor" },
+    { key: "street", label: "Street flooded", fill: "dmg-street" },
+    { key: "home", label: "Homes flooded", fill: "dmg-home", critical: true },
+    { key: "wind", label: "Wind or roof damage", fill: "dmg-wind" },
+    { key: "major", label: "Major damage", fill: "dmg-major", critical: true },
+    { key: "destroyed", label: "Destroyed", fill: "dmg-destroyed", critical: true },
+    { key: "fire", label: "Fire", fill: "dmg-major", glyph: "fire", critical: true },
+    { key: "road", label: "Road blocked", fill: "dmg-intact", glyph: "road" },
+    { key: "power", label: "Power out", fill: "dmg-intact", glyph: "power" },
+    { key: "shelter", label: "Shelter open", fill: "dmg-intact", glyph: "shelter" },
+    { key: "hospital", label: "Hospital operating", fill: "dmg-intact", glyph: "hospital" }
+  ];
+  var STATE = {};
+  STATES.forEach(function (s) { STATE[s.key] = s; });
+  STATE.water = { key: "water", label: "Water", fill: "map-water", scenery: true };
+  STATE.park = { key: "park", label: "Park", fill: "map-park", scenery: true };
+
+  function DamageMap(props) {
+    var size = props.size || 32;
+    var cells = props.cells || [];
+    var conf = props.confidence;
+    var truth = props.truth;
+    var mode = props.mode || "guess";
+    var cellSize = props.cellSize || 16;
+    var gap = props.gap == null ? (cellSize >= 10 ? 1 : 0) : props.gap;
+    var glyphs = props.glyphs == null ? cellSize >= 12 : props.glyphs;
+    var floor = props.confidenceFloor == null ? 0.15 : props.confidenceFloor;
+    var src = mode === "truth" && truth ? truth : cells;
+    var items = [];
+    for (var i = 0; i < size * size; i++) {
+      var k = src[i] || "intact";
+      var s = STATE[k] || STATE.intact;
+      var o = 1;
+      var wrong = false;
+      if (!s.scenery) {
+        if (mode === "diff" && truth) {
+          wrong = truth[i] !== cells[i];
+          o = wrong ? 1 : 0.18;
+        } else if (mode === "guess" && conf) {
+          o = floor + (1 - floor) * Math.max(0, Math.min(1, conf[i]));
+        }
+      }
+      items.push(h("div", {
+        key: i,
+        "data-i": i,
+        className: cx("sl-mcell", wrong && "sl-mcell-wrong", props.selected === i && "sl-mcell-sel"),
+        style: { background: "var(--" + s.fill + ")", opacity: o }
+      }, glyphs && s.glyph ? h("span", { className: "sl-glyph sl-glyph-" + s.glyph }) : null));
+    }
+    var onClick = props.onSelect ? function (e) {
+      var t = e.target.closest ? e.target.closest("[data-i]") : null;
+      if (t) props.onSelect(Number(t.getAttribute("data-i")));
+    } : undefined;
+    var grid = h("div", {
+      className: cx("sl-map", props.onSelect && "sl-map-pick"),
+      role: "img",
+      "aria-label": props.label || size + " by " + size + " damage map",
+      onClick: onClick,
+      style: {
+        gridTemplateColumns: "repeat(" + size + ", " + cellSize + "px)",
+        gridAutoRows: cellSize + "px",
+        gap: gap + "px"
+      }
+    }, items);
+    var cap = (props.caption || props.meta) && h("figcaption", { className: "sl-puzzle-cap" },
+      props.caption && h("span", { className: "sl-label" }, props.caption),
+      props.meta && h("span", { className: "sl-num sl-muted" }, props.meta));
+    return h("figure", { className: cx("sl-puzzle", props.className) }, grid, cap);
+  }
+
+  function DamageLegend(props) {
+    var keys = props.states || STATES.map(function (s) { return s.key; });
+    return h("ul", { className: cx("sl-legend-map", props.columns === 1 && "sl-legend-one", props.className) },
+      keys.map(function (k) {
+        var s = STATE[k];
+        return h("li", { key: k },
+          h("span", { className: "sl-swatch", style: { background: "var(--" + s.fill + ")" } },
+            s.glyph ? h("span", { className: "sl-glyph sl-glyph-" + s.glyph }) : null),
+          h("span", null, s.label),
+          s.critical && props.markCritical ? h("span", { className: "sl-crit" }, "critical") : null);
+      }));
+  }
+
+  // ---------- LineageTree ----------
+  // Kept changes stack on the main line; rejected ideas hang off as dead ends; memory skips as hollow stubs.
+  function LineageTree(props) {
+    var gens = props.gens || [];
+    var total = props.total || Math.max(gens.length, 2);
+    var width = props.width || 760, height = props.height || 150;
+    var padX = 28, yMain = 44, yBranch = 112;
+    var step = (width - padX * 2) / Math.max(1, total - 1);
+    function x(g) { return padX + g * step; }
+    var els = [], main = [];
+    gens.forEach(function (g) { if (g.status === 'baseline' || g.status === 'kept') main.push(g); });
+    for (var k = 1; k < main.length; k++) {
+      els.push(h("line", { key: "e" + k, className: "sl-lt-edge", x1: x(main[k - 1].gen), y1: yMain, x2: x(main[k].gen), y2: yMain }));
+    }
+    gens.forEach(function (g) {
+      var onMain = g.status === 'baseline' || g.status === 'kept';
+      var cx = x(g.gen), cy = onMain ? yMain : yBranch;
+      if (!onMain && g.parent != null) {
+        els.push(h("path", { key: "b" + g.gen, className: "sl-lt-branch sl-lt-branch-" + g.status,
+          d: "M" + x(g.parent) + " " + yMain + " C " + x(g.parent) + " " + (yMain + 40) + ", " + cx + " " + (yBranch - 40) + ", " + cx + " " + (yBranch - 13) }));
+      }
+      els.push(h("g", { key: "n" + g.gen, className: "sl-lt-node sl-lt-" + g.status },
+        h("circle", { cx: cx, cy: cy, r: 13 }),
+        h("text", { x: cx, y: cy + 4, textAnchor: "middle", className: "sl-lt-num" }, g.gen),
+        h("text", { x: cx, y: cy + (onMain ? -22 : 30), textAnchor: "middle", className: "sl-lt-label" }, g.label || "")));
+    });
+    if (props.current != null) {
+      var cx2 = x(props.current);
+      els.push(h("g", { key: "cur", className: "sl-lt-current" },
+        h("circle", { cx: cx2, cy: yMain, r: 13 }),
+        h("text", { x: cx2, y: yMain + 4, textAnchor: "middle", className: "sl-lt-num" }, props.current)));
+    }
+    return h("svg", { className: cx("sl-lt", props.className), viewBox: "0 0 " + width + " " + height, width: width, height: height,
+      role: "img", "aria-label": props.label || "Lineage of the harness" }, els);
+  }
+
+  // ---------- PolicyRules ----------
+  // The evolved policy as plain rules, each traced to the generation that found it.
+  function PolicyRules(props) {
+    var rules = props.rules || [];
+    return h("ol", { className: cx("sl-rules", props.className) }, rules.map(function (r, i) {
+      return h("li", { key: i },
+        h("span", { className: "sl-rules-n sl-num" }, i + 1),
+        h("span", { className: "sl-rules-text" }, r.text),
+        h("span", { className: "sl-rules-gen" }, "Gen " + r.gen));
+    }));
+  }
+
+  var api = {
+    PuzzleGrid: PuzzleGrid,
+    StatusBadge: StatusBadge,
+    LineageNode: LineageNode,
+    ScoreCurve: ScoreCurve,
+    DiffCard: DiffCard,
+    DamageMap: DamageMap,
+    DamageLegend: DamageLegend,
+    LineageTree: LineageTree,
+    PolicyRules: PolicyRules,
+    STATES: STATES,
+    PALETTE: PALETTE
+  };
+  window.Sightline = window.Sightline || {};
+  Object.assign(window.Sightline, api);
+})();
+</script>
+<script>
+/* Example scenario data for the Sightline hurricane mockups. Illustrative only: stylized maps, made-up storms and scores. */
+(function () {
+  var N = 32;
+
+  function rng(seed) {
+    var s = (seed >>> 0) || 1;
+    return function () { s = (Math.imul(s, 1664525) + 1013904223) >>> 0; return s / 4294967296; };
+  }
+  function hash(str) {
+    var h = 2166136261;
+    for (var i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); }
+    return h >>> 0;
+  }
+
+  // ---- Geography: a stylized 32x32 map per city. true = water. ----
+  function nycWater(r, c) {
+    if (c <= 1) return true; // Hudson
+    var shift = (r >= 10 ? 1 : 0) + (r >= 20 ? 1 : 0);
+    var east = 13 + shift, west = 2;
+    if (r >= 21) { west = 2 + (r - 21); east = east - (r - 21); }
+    var manhattan = c >= west && c <= east;
+    var bkWest = 17 + shift;
+    var brooklyn = c >= bkWest && r <= 26;
+    var redhook = r >= 24 && r <= 29 && c >= bkWest + 1 && c <= bkWest + 8 - (r - 24);
+    var gowanus = c === bkWest + 10 && r >= 13 && r <= 25;
+    var governors = r >= 29 && r <= 30 && c >= 12 && c <= 15;
+    if (gowanus) return true;
+    return !(manhattan || brooklyn || redhook || governors);
+  }
+  function nycPark(r, c) {
+    if (r >= 29 && r <= 30 && c >= 12 && c <= 15) return true; // Governors Island
+    if (r >= 25 && r <= 26 && c >= 6 && c <= 8) return true;    // Battery Park
+    if (c === 18 && r >= 5 && r <= 11) return true;             // Brooklyn Bridge Park
+    return false;
+  }
+  function miamiWater(r, c) {
+    if (c >= 29) return true;                     // Atlantic
+    if (c >= 18 && c <= 24) return true;          // Biscayne Bay
+    if (r === 12 && c <= 17 && c >= 3) return true; // Miami River
+    if (c >= 25 && c <= 28 && (r <= 1 || r >= 30)) return true;
+    return false;
+  }
+  function houstonWater(r, c) {
+    var b1 = 11 + Math.round(3 * Math.sin(c / 4.5));
+    var b2 = 24 + Math.round(2 * Math.sin(c / 3.2 + 1));
+    return r === b1 || r === b2 || (c === 20 && r > b1 && r < b2 && r % 1 === 0 && r >= 14 && r <= 20);
+  }
+  function nolaWater(r, c) {
+    if (r <= 4) return true; // Lake Pontchartrain
+    var river = 20 + Math.round(7 * Math.sin((r - 8) / 5.5));
+    if (r >= 9 && Math.abs(c - river) <= 1) return true;
+    if ((c === 8 || c === 14) && r >= 5 && r <= 13) return true; // drainage canals
+    return false;
+  }
+
+  var CITIES = {
+    nyc: { key: 'nyc', name: 'New York', area: 'Lower Manhattan and the Brooklyn waterfront', water: nycWater, park: nycPark,
+      hospitals: [[6, 8], [9, 25]], shelters: [[3, 5], [4, 22], [15, 27], [11, 10]] },
+    miami: { key: 'miami', name: 'Miami', area: 'Downtown, Brickell and Miami Beach', water: miamiWater, park: function () { return false; },
+      hospitals: [[6, 8]], shelters: [[3, 4], [20, 10], [15, 26]] },
+    houston: { key: 'houston', name: 'Houston', area: 'Buffalo and Brays Bayou', water: houstonWater, park: function () { return false; },
+      hospitals: [[18, 9]], shelters: [[4, 20], [30, 6], [17, 28]] },
+    nola: { key: 'nola', name: 'New Orleans', area: 'Mid-City to the Lower Ninth Ward', water: nolaWater, park: function () { return false; },
+      hospitals: [[12, 4]], shelters: [[7, 26], [25, 5], [29, 30]] }
+  };
+  var ORDER = ['nyc', 'miami', 'houston', 'nola'];
+
+  // Storms per city: 3 in sequence. The first is tuned on; later ones are mapped blind first.
+  var STORMS = {
+    nyc: [
+      { name: 'Storm 1', kind: 'Surge', when: 'October', surge: 0.95, rain: 0.2, wind: 0.25, outage: true },
+      { name: 'Storm 2', kind: 'Cloudburst', when: 'September', surge: 0.15, rain: 0.95, wind: 0.15 },
+      { name: 'Storm 3', kind: 'Tonight', when: 'Now', surge: 0.6, rain: 0.4, wind: 0.85, outage: true }
+    ],
+    miami: [
+      { name: 'Storm 1', kind: 'Surge', when: 'August', surge: 0.9, rain: 0.3, wind: 0.6 },
+      { name: 'Storm 2', kind: 'King tide', when: 'October', surge: 0.55, rain: 0.2, wind: 0.1 },
+      { name: 'Storm 3', kind: 'Tonight', when: 'Now', surge: 0.7, rain: 0.5, wind: 0.8, outage: true }
+    ],
+    houston: [
+      { name: 'Storm 1', kind: 'Stalled rain', when: 'August', surge: 0.0, rain: 1.0, wind: 0.2 },
+      { name: 'Storm 2', kind: 'Derecho', when: 'May', surge: 0.0, rain: 0.3, wind: 0.95, outage: true },
+      { name: 'Storm 3', kind: 'Tonight', when: 'Now', surge: 0.0, rain: 0.85, wind: 0.6 }
+    ],
+    nola: [
+      { name: 'Storm 1', kind: 'Levee breach', when: 'August', surge: 0.8, rain: 0.6, wind: 0.5, bowl: true },
+      { name: 'Storm 2', kind: 'Cloudburst', when: 'June', surge: 0.1, rain: 0.9, wind: 0.1, bowl: true },
+      { name: 'Storm 3', kind: 'Tonight', when: 'Now', surge: 0.6, rain: 0.6, wind: 0.8, outage: true, bowl: true }
+    ]
+  };
+
+  var cache = {};
+
+  function geo(cityKey) {
+    if (cache['g' + cityKey]) return cache['g' + cityKey];
+    var city = CITIES[cityKey];
+    var water = [], park = [], dist = [];
+    for (var r = 0; r < N; r++) for (var c = 0; c < N; c++) {
+      var i = r * N + c;
+      water[i] = city.water(r, c);
+      park[i] = !water[i] && city.park(r, c);
+      dist[i] = water[i] ? 0 : 99;
+    }
+    // BFS distance to water
+    var queue = [];
+    for (var j = 0; j < N * N; j++) if (water[j]) queue.push(j);
+    while (queue.length) {
+      var k = queue.shift(), kr = Math.floor(k / N), kc = k % N;
+      [[1, 0], [-1, 0], [0, 1], [0, -1]].forEach(function (d) {
+        var nr = kr + d[0], nc = kc + d[1];
+        if (nr < 0 || nc < 0 || nr >= N || nc >= N) return;
+        var n = nr * N + nc;
+        if (dist[n] > dist[k] + 1) { dist[n] = dist[k] + 1; queue.push(n); }
+      });
+    }
+    return (cache['g' + cityKey] = { water: water, park: park, dist: dist });
+  }
+
+  function blobs(R, count) {
+    var out = [];
+    for (var b = 0; b < count; b++) out.push({ r: R() * N, c: R() * N, s: 2 + R() * 3 });
+    return function (r, c) {
+      var v = 0;
+      out.forEach(function (b) { var d2 = (r - b.r) * (r - b.r) + (c - b.c) * (c - b.c); v = Math.max(v, Math.exp(-d2 / (2 * b.s * b.s))); });
+      return v;
+    };
+  }
+
+  function truth(cityKey, stormIndex) {
+    var key = 't' + cityKey + stormIndex;
+    if (cache[key]) return cache[key];
+    var city = CITIES[cityKey], storm = STORMS[cityKey][stormIndex], g = geo(cityKey);
+    var R = rng(hash(key));
+    var rain = blobs(R, 6);
+    var swath = { r0: R() * 8, c0: R() * N, r1: 24 + R() * 8, c1: R() * N };
+    var cells = [];
+    for (var r = 0; r < N; r++) for (var c = 0; c < N; c++) {
+      var i = r * N + c;
+      if (g.water[i]) { cells.push('water'); continue; }
+      if (g.park[i]) { cells.push('park'); continue; }
+      var d = g.dist[i];
+      var surgeHome = storm.surge * (d === 1 ? 0.8 : d === 2 ? 0.5 : d === 3 ? 0.18 : 0);
+      var surgeStreet = storm.surge * (d <= 2 ? 0.15 : d <= 4 ? 0.4 : d <= 5 ? 0.15 : 0);
+      var low = storm.bowl ? Math.max(0, 1 - Math.abs(r - 18) / 9) * Math.max(0, 1 - Math.abs(c - 12) / 12) : 0;
+      var rv = rain(r, c) * storm.rain + low * storm.rain * 0.6;
+      var pHome = Math.min(0.95, surgeHome + rv * 0.55 + (storm.bowl ? low * storm.surge * 0.5 : 0));
+      var pStreet = Math.min(0.9, surgeStreet + rv * 0.35);
+      // wind swath distance
+      var ax = swath.c1 - swath.c0, ay = swath.r1 - swath.r0;
+      var t = Math.max(0, Math.min(1, ((c - swath.c0) * ax + (r - swath.r0) * ay) / (ax * ax + ay * ay)));
+      var wd = Math.hypot(c - (swath.c0 + t * ax), r - (swath.r0 + t * ay));
+      var w = storm.wind * Math.max(0, 1 - wd / 4);
+      var x = R();
+      var s;
+      if (x < pHome) s = (d <= 1 && storm.surge > 0.8 && R() < 0.12) ? (R() < 0.5 ? 'destroyed' : 'major') : 'home';
+      else if (x < pHome + pStreet) s = 'street';
+      else if (R() < w * 0.55) s = R() < 0.18 ? 'major' : (R() < 0.25 ? 'road' : 'wind');
+      else if (R() < 0.07 + storm.wind * 0.05) s = R() < 0.5 ? 'minor' : 'road';
+      else s = 'intact';
+      if (s === 'intact' && storm.outage && (d <= 4 || r >= 18) && R() < 0.35) s = 'power';
+      cells.push(s);
+    }
+    // fires: a couple, near flooding or wind
+    for (var f = 0; f < 2; f++) {
+      var fi = Math.floor(R() * N * N);
+      if (cells[fi] === 'home' || cells[fi] === 'major' || cells[fi] === 'wind') cells[fi] = 'fire';
+    }
+    city.hospitals.forEach(function (p) { var i = p[0] * N + p[1]; if (cells[i] !== 'water') cells[i] = 'hospital'; });
+    city.shelters.forEach(function (p) { var i = p[0] * N + p[1]; if (cells[i] !== 'water') cells[i] = 'shelter'; });
+    return (cache[key] = cells);
+  }
+
+  var CONFUSE = {
+    intact: ['minor', 'power', 'street'], minor: ['intact', 'wind', 'road'], street: ['home', 'intact', 'minor'],
+    home: ['street', 'major', 'intact'], wind: ['minor', 'major', 'road'], major: ['wind', 'destroyed', 'home'],
+    destroyed: ['major', 'home'], fire: ['major', 'wind'], road: ['minor', 'intact'], power: ['intact', 'minor'],
+    shelter: ['intact'], hospital: ['intact', 'shelter']
+  };
+  var ALL = ['intact', 'minor', 'street', 'home', 'wind', 'major', 'destroyed', 'fire', 'road', 'power', 'shelter', 'hospital'];
+
+  // Jev's map for a given policy quality (0..1). Deterministic per seed.
+  function guess(cityKey, stormIndex, quality, seed) {
+    var key = 'j' + cityKey + stormIndex + ':' + quality + ':' + seed;
+    if (cache[key]) return cache[key];
+    var t = truth(cityKey, stormIndex), R = rng(hash(key));
+    var cells = [], conf = [];
+    t.forEach(function (s) {
+      if (s === 'water' || s === 'park') { cells.push(s); conf.push(1); return; }
+      if (R() < quality) { cells.push(s); conf.push(Math.min(1, 0.5 + 0.35 * quality + 0.2 * R())); return; }
+      var pick = R() < 0.5 + quality * 0.4 ? CONFUSE[s][Math.floor(R() * CONFUSE[s].length)] : ALL[Math.floor(R() * ALL.length)];
+      cells.push(pick);
+      conf.push(0.12 + 0.4 * R());
+    });
+    return (cache[key] = { cells: cells, conf: conf });
+  }
+
+  var CRIT = { home: 1, major: 1, destroyed: 1, fire: 1 };
+  function score(t, gcells) {
+    var right = 0, total = 0, critTotal = 0, critFound = 0;
+    t.forEach(function (s, i) {
+      if (s === 'water' || s === 'park') return;
+      total++;
+      if (gcells[i] === s) right++;
+      if (CRIT[s]) { critTotal++; if (CRIT[gcells[i]]) critFound++; }
+    });
+    return { acc: right / total, right: right, total: total, critTotal: critTotal, critFound: critFound };
+  }
+
+  // Policy quality by stage. Tuning runs on a storm, then the blind first look at the next storm.
+  var PLAN = {
+    nyc: {
+      runs: [0.30, 0.44, 0.40, 0.57, 0.66, 0.74, null, 0.83],
+      blind: [null, 0.70, 0.82],   // blind first look at storms 2 and 3
+      tuned: [0.83, 0.88, null]
+    },
+    miami: { runs: [0.48, 0.58, 0.66, 0.73, 0.79, null, 0.82, 0.84], blind: [null, 0.74, 0.8], tuned: [0.84, 0.87, null] },
+    houston: { runs: [0.55, 0.62, 0.70, 0.66, 0.77, 0.81, 0.83, null], blind: [null, 0.76, 0.81], tuned: [0.83, 0.86, null] },
+    nola: { runs: [0.6, 0.67, 0.74, 0.79, null, 0.82, 0.85, 0.86], blind: [null, 0.78, 0.83], tuned: [0.86, 0.88, null] }
+  };
+
+  // Curator log for NYC storm 1 (one entry per scored run).
+  var RUNS_NYC = [
+    { run: 1, status: 'accepted', hyp: 'Baseline: the 12 reports nearest the block by vector search.', ops: [] },
+    { run: 2, status: 'accepted', hyp: 'The utility outage feed looks mirrored. Swap its latitude and longitude.', ops: [{ knob: 'correct', op: 'change', text: 'Utility feed: swap lat and long.' }], predicted: 0.08 },
+    { run: 3, status: 'rejected', hyp: 'Trust the city survey over the fire department; its scale is more detailed.', ops: [{ knob: 'weight', op: 'change', text: 'City survey weight 2, fire department 0.5.' }], predicted: 0.06, trap: true },
+    { run: 4, status: 'accepted', hyp: 'The two surveys use different scales. Translate both to one: "Level 3" and "Category C" both mean homes flooded.', ops: [{ knob: 'gloss', op: 'add', text: 'Map both agencies\' scales to the 12 states.' }], predicted: 0.1 },
+    { run: 5, status: 'accepted', hyp: 'Three social accounts post confident collapse reports that never match drone passes. Drop them.', ops: [{ knob: 'exclude', op: 'add', text: 'Drop accounts R2, R5 and R7.' }], predicted: 0.07 },
+    { run: 6, status: 'accepted', hyp: 'Flooding spreads across block edges. Add how many blocks within 200 m report water.', ops: [{ knob: 'related', op: 'add', text: 'Neighbor summary: $geoNear, 200 m, water reports only.' }], predicted: 0.08 },
+    { run: 7, status: 'skipped', hyp: 'Weight the city survey higher than the fire department.', ops: [], note: 'Too close to run 3, which failed. Not scored.' },
+    { run: 8, status: 'accepted', hyp: 'Drone passes are the most reliable. Put them first when a block has one.', ops: [{ knob: 'format', op: 'change', text: 'Order: drone, 911, surveys, social.' }], predicted: 0.05 }
+  ];
+
+  // Lessons the harness carries to a new city (memory, vector search).
+  var LESSONS = [
+    { text: 'New feeds: check coordinate order before trusting them.', from: 'NYC run 2' },
+    { text: 'Agencies rate damage on different scales. Translate before comparing.', from: 'NYC run 4' },
+    { text: 'Confident accounts that never match drone passes are rumor. Drop them.', from: 'NYC run 5' },
+    { text: 'Water spreads across block edges; wind damage doesn\'t. Summarize neighbors for flooding only.', from: 'NYC run 6' },
+    { text: 'Bayous flood along their banks, not the coast. Measure distance to any water.', from: 'Houston run 3' }
+  ];
+
+  function where(r, c) {
+    if (c <= 15) return r >= 18 ? 'Financial District' : r >= 9 ? 'Two Bridges' : 'Lower East Side';
+    return r >= 23 ? 'Red Hook' : r >= 13 ? 'Cobble Hill' : 'DUMBO';
+  }
+
+  // Everything the demo-flow storyboards need, for NYC, tonight = Storm 3.
+  function flow() {
+    if (cache.flow) return cache.flow;
+    var K = 2, t = truth('nyc', K), g = geo('nyc'), R = rng(hash('flow'));
+    var calm = t.map(function (s) { return s === 'water' || s === 'park' ? s : 'intact'; });
+
+    function find(test) {
+      for (var i = 0; i < t.length; i++) { var r = Math.floor(i / N), c = i % N; if (test(t[i], r, c, g.dist[i])) return i; }
+      return -1;
+    }
+    var mRumor = find(function (s, r, c, d) { return s === 'intact' && c >= 22 && r >= 13 && r <= 18 && d >= 3; });
+    var mSwap = find(function (s, r, c, d) { return s === 'intact' && c >= 8 && c <= 12 && r >= 10 && r <= 14 && d >= 2; });
+    var mScale = find(function (s, r, c, d) { return s === 'home' && c >= 19 && r >= 23; });
+    var mDrift = find(function (s, r, c, d) { return s === 'home' && c <= 12 && r >= 14 && r <= 20; });
+
+    // Zero-shot: plain retrieval, no harness. The four misreads are its most confident mistakes.
+    var z0 = guess('nyc', K, 0.30, 7);
+    var zero = { cells: z0.cells.slice(), conf: z0.conf.slice() };
+    [[mRumor, 'destroyed'], [mSwap, 'power'], [mScale, 'minor'], [mDrift, 'street']].forEach(function (p) {
+      if (p[0] >= 0) { zero.cells[p[0]] = p[1]; zero.conf[p[0]] = 0.93; }
+    });
+    var ev = guess('nyc', K, PLAN.nyc.blind[K], 102);
+    var evolved = { cells: ev.cells.slice(), conf: ev.conf.slice() };
+    [mRumor, mSwap, mScale, mDrift].forEach(function (i) { if (i >= 0) { evolved.cells[i] = t[i]; evolved.conf[i] = 0.86; } });
+
+    var CRIT = { home: 1, major: 1, destroyed: 1, fire: 1 };
+    function triage(m) {
+      var list = [];
+      m.cells.forEach(function (s, i) { if (CRIT[s]) list.push({ i: i, s: s, conf: m.conf[i] }); });
+      list.sort(function (a, b) { return b.conf - a.conf; });
+      var falseAlarms = list.filter(function (x) { return !CRIT[t[x.i]]; }).length;
+      return { flagged: list.length, falseAlarms: falseAlarms, top: list.slice(0, 6).map(function (x) {
+        var r = Math.floor(x.i / N), c = x.i % N;
+        return { i: x.i, block: (r + 1) + '-' + (c + 1), where: where(r, c), state: x.s, conf: x.conf.toFixed(2) };
+      }) };
+    }
+
+    // Incoming reports as pins. Utility pins use swapped coordinates, so many land in the water.
+    var pins = [];
+    t.forEach(function (s, i) {
+      var r = Math.floor(i / N), c = i % N;
+      if (s === 'water' || s === 'park') return;
+      var x = R();
+      if (CRIT[s] && x < 0.22) pins.push({ r: r, c: c, kind: 'call' });
+      else if (s === 'street' && x < 0.12) pins.push({ r: r, c: c, kind: 'ticket' });
+      else if (s === 'power' && x < 0.25) pins.push({ r: c, c: r, kind: 'utility', odd: g.water[c * N + r] });
+      else if (x < 0.018) pins.push({ r: r, c: c, kind: 'drone' });
+      else if (x < 0.03) pins.push({ r: r, c: c, kind: 'social' });
+    });
+    if (mRumor >= 0) pins.push({ r: Math.floor(mRumor / N), c: mRumor % N, kind: 'social', odd: true });
+
+    var feed = [
+      { time: '23:41', src: '911', text: 'Water coming in under the door, ground floor. Near Van Brunt St.' },
+      { time: '23:42', src: 'Social', text: 'WHOLE BLOCK COLLAPSED on Court St, confirmed!!', odd: true },
+      { time: '23:42', src: 'Utility', text: 'Outage at (-74.004, 40.708): lands in the East River.', odd: true },
+      { time: '23:43', src: '311', text: 'Street flooded, cars floating, Water St.' },
+      { time: '23:44', src: 'Survey', text: 'City survey: Category C, Van Brunt St.' },
+      { time: '23:44', src: 'Drone', text: 'Pass 12: standing water to first-floor windows.' }
+    ];
+
+    var misreads = [
+      { n: 1, i: mRumor, title: 'A rumor taken literally', jev: 'Destroyed', truth: 'Intact',
+        text: 'A viral post said the whole block collapsed. No drone pass or 911 call backed it up.' },
+      { n: 2, i: mSwap, title: 'Coordinates read as written', jev: 'Power out', truth: 'Intact',
+        text: 'The utility feed swaps latitude and longitude. Outages landed in the river and on the wrong blocks.' },
+      { n: 3, i: mScale, title: 'A damage scale read at face value', jev: 'Minor damage', truth: 'Homes flooded',
+        text: 'On the city survey, "Category C" means homes flooded, not minor damage.' },
+      { n: 4, i: mDrift, title: 'A 911 location taken as exact', jev: 'Street flooded', truth: 'Homes flooded',
+        text: 'Caller locations drift up to a block. The flooded homes next door went unmatched.' }
+    ].map(function (m) { m.r = Math.floor(m.i / N); m.c = m.i % N; m.where = where(m.r, m.c); return m; });
+
+    var runs = RUNS_NYC.map(function (run, j) {
+      var q = PLAN.nyc.runs[j];
+      var m = q == null ? null : guess('nyc', 0, q, j + 1);
+      return { run: run.run, status: run.status, hyp: run.hyp, trap: !!run.trap,
+        acc: m ? score(truth('nyc', 0), m.cells).acc : null, cells: m ? m.cells : null, conf: m ? m.conf : null };
+    });
+
+    var cities = ORDER.map(function (key) {
+      var gm = guess(key, 2, PLAN[key].blind[2], 102);
+      var s = score(truth(key, 2), gm.cells);
+      var start = score(truth(key, 0), guess(key, 0, PLAN[key].runs[0], 1).cells).acc;
+      return { key: key, name: CITIES[key].name, area: CITIES[key].area, cells: gm.cells, conf: gm.conf, acc: s.acc, critFound: s.critFound, critTotal: s.critTotal, start: start };
+    });
+
+    // Evolution: generation 0 is the unevolved harness. Fitness = backtest on past storms;
+    // selection = the gate on a validation town (a change is kept only if validation rises).
+    var GEN_DEF = [
+      { hyp: 'Generation 0: the 12 reports nearest each block, taken at face value.', q: 0.30, valOff: -0.013 },
+      { hyp: 'Outage reports land in the river. The utility feed must have latitude and longitude swapped.', rule: 'Swap the utility feed back to latitude, longitude.', predicted: 0.08, q: 0.44, valOff: -0.022 },
+      { hyp: 'The city survey is more detailed than the fire department’s. Trust it more.', predicted: 0.06, q: 0.55, val: 0.418, trap: true },
+      { hyp: '"Level 3" and "Category C" both mean homes flooded. Translate both agencies’ scales before Jev reads them.', rule: 'Translate the fire-department and city damage scales.', predicted: 0.10, q: 0.57, valOff: -0.025 },
+      { hyp: 'Three "verified" accounts post collapses no drone pass ever confirms. They’re rumors; drop them.', rule: 'Drop accounts that never match a drone pass.', predicted: 0.07, q: 0.66, valOff: -0.028 },
+      { hyp: 'Flooding spreads across block edges. Add neighbors’ flood reports within 200 m.', rule: 'Pull neighbors’ flood reports only, within 200 m.', predicted: 0.08, q: 0.74, valOff: -0.028 },
+      { hyp: 'Weight the city survey above the fire department.', skippedLike: 2 },
+      { hyp: '911 locations drift up to a block. Match calls to blocks within 150 m, not exact addresses.', rule: 'Match 911 calls within 150 m.', predicted: 0.05, q: 0.83, valOff: -0.037 }
+    ];
+    var t0 = truth('nyc', 0), bestVal = null, bestGen = null;
+    var gens = GEN_DEF.map(function (d, g) {
+      var out = { gen: g, hyp: d.hyp, rule: d.rule || null, predicted: d.predicted == null ? null : d.predicted, trap: !!d.trap };
+      if (d.skippedLike != null) {
+        return Object.assign(out, { status: 'skipped', parent: bestGen, note: 'Too close to generation ' + d.skippedLike + ', which failed. Not scored.' });
+      }
+      var m = guess('nyc', 0, d.q, 300 + g);
+      var dev = score(t0, m.cells).acc, val = d.val != null ? d.val : dev + d.valOff;
+      var kept = bestVal == null || val > bestVal;
+      Object.assign(out, { cells: m.cells, conf: m.conf, dev: dev, val: val, parent: bestGen,
+        valDelta: bestVal == null ? null : val - bestVal, status: g === 0 ? 'baseline' : kept ? 'kept' : 'rejected' });
+      if (kept) { bestVal = val; bestGen = g; }
+      return out;
+    });
+
+    var heldTown = cities[1];
+
+    return (cache.flow = {
+      gens: gens, origin: { devFrom: 0.46, devTo: 0.93, heldFrom: 0.50, heldTo: 0.45 },
+      heldTown: heldTown,
+      calm: calm, truth: t, pins: pins, feed: feed, misreads: misreads, runs: runs, cities: cities,
+      pastTruth: truth('nyc', 0),
+      zero: Object.assign(zero, score(t, zero.cells), triage(zero)),
+      evolved: Object.assign(evolved, score(t, evolved.cells), triage(evolved)),
+      counts: { calls: 1184, tickets: 2410, drone: 38, social: 6120, utility: 412 }
+    });
+  }
+
+  window.SightlineDemo = {
+    N: N, CITIES: CITIES, ORDER: ORDER, STORMS: STORMS, PLAN: PLAN, RUNS_NYC: RUNS_NYC, LESSONS: LESSONS,
+    truth: truth, guess: guess, score: score, geo: geo, flow: flow, where: where
+  };
+})();
+</script>
+<script>
+(function () {
+  var React = window.React;
+  var useState = React.useState, useEffect = React.useEffect, useRef = React.useRef;
+  var html = window.htm.bind(React.createElement);
+  var S = window.Sightline, D = window.SightlineDemo;
+  var F = D.flow();
+  var GENS = F.gens;
+  var LABEL = {};
+  S.STATES.forEach(function (s) { LABEL[s.key] = s.label; });
+  var CRIT = { home: 1, major: 1, destroyed: 1, fire: 1 };
+  var pct = function (v) { return v == null ? '—' : (v * 100).toFixed(1) + '%'; };
+  var pts = function (v) { return (v >= 0 ? '+' : '−') + Math.abs(v * 100).toFixed(1); };
+
+  var CELL = 20;
+  function at(r, c, cell) { cell = cell || CELL; return { left: 1 + c * (cell + 1) + cell / 2, top: 1 + r * (cell + 1) + cell / 2 }; }
+
+  var PIN = {
+    call: { width: 10, height: 10, borderRadius: 5, background: 'var(--critical)', boxShadow: '0 0 0 2px var(--surface-raised)' },
+    ticket: { width: 9, height: 9, background: 'var(--warn)', boxShadow: '0 0 0 2px var(--surface-raised)' },
+    drone: { width: 9, height: 9, background: 'var(--accent)', boxShadow: '0 0 0 2px var(--surface-raised)', rotate: true },
+    social: { width: 10, height: 10, borderRadius: 5, background: 'var(--surface-raised)', boxShadow: 'inset 0 0 0 2.5px var(--ink-muted)' },
+    utility: { width: 9, height: 9, background: 'var(--ink)', boxShadow: '0 0 0 2px var(--surface-raised)' }
+  };
+  function pinStyle(kind, extra) {
+    var p = PIN[kind], st = Object.assign({}, p, extra || {});
+    delete st.rotate;
+    st.transform = (extra && extra.position === 'absolute' ? 'translate(-50%, -50%) ' : '') + (p.rotate ? 'rotate(45deg)' : '');
+    return st;
+  }
+
+  // Which generation fixed each of gen 0's four misreads.
+  var FIXED_BY = { 1: 4, 2: 1, 3: 3, 4: 7 };
+
+  function useTicker(active, resetKey, ms) {
+    var st = useState(0), tick = st[0], setTick = st[1];
+    useEffect(function () { setTick(0); }, [resetKey]);
+    useEffect(function () {
+      if (!active) return;
+      var id = setInterval(function () { setTick(function (t) { return t + 1; }); }, ms || 250);
+      return function () { clearInterval(id); };
+    }, [active, resetKey]);
+    return tick;
+  }
+
+  // ---------- the evolution loop (runs at app level, whatever is on screen) ----------
+  var PLAN = [['Propose', 2], ['Compile', 0.8], ['Backtest', 3.5], ['Validate', 1.2], ['Verdict', 1.8]];
+  var PLAN_SKIP = [['Propose', 2], ['Memory check', 1.4], ['Verdict', 1.8]];
+  function planFor(g) { return GENS[g].status === 'skipped' ? PLAN_SKIP : PLAN; }
+  var EVO0 = { started: false, done: false, gen: 0, phase: 0, pt: 0, elapsed: 0, history: [] };
+
+  function useEvolution() {
+    var s = useState(EVO0), st = s[0], setSt = s[1];
+    useEffect(function () {
+      if (!st.started || st.done) return;
+      var id = setInterval(function () {
+        setSt(function (prev) {
+          if (!prev.started || prev.done) return prev;
+          var plan = planFor(prev.gen);
+          var next = Object.assign({}, prev, { elapsed: prev.elapsed + 0.2, pt: prev.pt + 0.2 });
+          if (next.pt >= plan[prev.phase][1]) {
+            next.pt = 0; next.phase = prev.phase + 1;
+            if (next.phase >= plan.length) {
+              next.history = prev.history.concat([prev.gen]);
+              next.gen = prev.gen + 1; next.phase = 0;
+              if (next.gen >= GENS.length) { next.done = true; next.gen = GENS.length - 1; }
+            }
+          }
+          return next;
+        });
+      }, 200);
+      return function () { clearInterval(id); };
+    }, [st.started, st.done]);
+    return {
+      st: st,
+      start: function () { setSt(Object.assign({}, EVO0, { started: true })); },
+      reset: function () { setSt(EVO0); }
+    };
+  }
+
+  function bestOf(history) {
+    var best = null;
+    history.forEach(function (g) { var s = GENS[g].status; if (s === 'baseline' || s === 'kept') best = g; });
+    return best;
+  }
+
+  // ---------- shared pieces ----------
+  function Header(props) {
+    return html`<header className="bar">
+      <div className="brand"><span className="wordmark">Sightline</span><span className="muted">${props.place}</span></div>
+      <div className="row gap16">
+        <span className="muted">${props.clock}</span>
+        <span className=${'pill pill-' + props.mode}><span className="pill-dot"></span>${props.modeLabel}</span>
+      </div>
+    </header>`;
+  }
+
+  var REP = {
+    home: [['911 call', 'Water coming in on the ground floor.'], ['Drone pass', 'Water up to first-floor windows.'], ['Fire dept.', 'Level 3, which on that scale means homes flooded.']],
+    street: [['311 report', 'Street flooded, cars stuck.'], ['Drone pass', 'Water over the curb, doors dry.']],
+    wind: [['311 report', 'Part of the roof is gone.'], ['Social post', 'Photo of siding torn off.']],
+    major: [['911 call', 'A wall came down.'], ['City survey', 'Category D: major damage.']],
+    destroyed: [['Drone pass', 'Structure gone; debris only.'], ['City survey', 'Category E: destroyed.']],
+    fire: [['911 call', 'Smoke and flames from a basement.'], ['Drone pass', 'Active fire, flooded street.']],
+    road: [['311 report', 'Tree down across the road.'], ['Drone pass', 'Debris blocking both lanes.']],
+    power: [['Utility feed', 'Outage reported on this block.'], ['311 report', 'No power since 23:00.']],
+    shelter: [['City list', 'Shelter open, 120 beds.'], ['Social post', 'People arriving with pets.']],
+    hospital: [['Hospital status', 'Operating on generator.'], ['Drone pass', 'Ambulance bay clear.']],
+    minor: [['311 report', 'Some windows broken.'], ['Drone pass', 'Minor debris only.']],
+    intact: [['Drone pass', 'No visible damage.'], ['Social post', 'All fine on our block.']]
+  };
+
+  function BlockCard(props) {
+    var i = props.index, r = Math.floor(i / 32), c = i % 32;
+    var guess = props.cells[i], truth = props.truth ? props.truth[i] : null;
+    var rumor = F.misreads[0].i === i;
+    return html`<div className="blockcard">
+      <div className="row between"><strong>Block ${r + 1}-${c + 1}</strong><span className="muted small push">${D.where(r, c)}</span>
+        <button className="x" aria-label="Close" onClick=${props.onClose}>×</button></div>
+      <div className="small">Jev: <strong>${LABEL[guess] || guess}</strong> <span className="mono muted">${props.conf ? props.conf[i].toFixed(2) : ''}</span>
+        ${truth ? html` · <span style=${{ color: truth === guess ? 'var(--good)' : 'var(--critical)' }}>${truth === guess ? 'Assessment agrees' : 'Assessment: ' + LABEL[truth]}</span>` : null}</div>
+      <ul className="reports">
+        ${rumor ? html`<li><span className="mono muted">Social</span><span>WHOLE BLOCK COLLAPSED, confirmed!!</span></li>` : null}
+        ${(REP[F.truth[i]] || []).map(function (p, k) { return html`<li key=${k}><span className="mono muted">${p[0]}</span><span>${p[1]}</span></li>`; })}
+      </ul>
+    </div>`;
+  }
+
+  function MapStage(props) {
+    var sel = useState(null), selected = sel[0], setSelected = sel[1];
+    useEffect(function () { setSelected(null); }, [props.resetKey]);
+    var clickable = !!props.clickable;
+    return html`<div className="mapstage">
+      <${S.DamageMap} cells=${props.cells} confidence=${props.conf} truth=${props.truth} mode=${props.mode || 'guess'}
+        cellSize=${CELL} caption=${props.caption} meta=${props.meta} label=${props.caption}
+        selected=${selected == null ? -1 : selected}
+        onSelect=${clickable ? function (i) { if (F.truth[i] !== 'water' && F.truth[i] !== 'park') setSelected(i); } : undefined} />
+      ${(props.pins || []).map(function (p, k) {
+        var pos = at(p.r, p.c);
+        var extra = { position: 'absolute', left: pos.left, top: pos.top };
+        if (p.odd) { extra.outline = '2px dashed var(--critical)'; extra.outlineOffset = 3; }
+        return html`<span key=${k} className="pin" style=${pinStyle(p.kind, extra)}></span>`;
+      })}
+      ${(props.marks || []).map(function (m) {
+        var pos = at(m.r, m.c);
+        return html`<span key=${'m' + m.n} className=${'mark' + (m.tone ? ' mark-' + m.tone : '')} style=${{ left: pos.left, top: pos.top }}>${m.n}</span>`;
+      })}
+      ${selected != null ? html`<${BlockCard} index=${selected} cells=${props.cells} conf=${props.conf} truth=${props.showTruth ? F.truth : null} onClose=${function () { setSelected(null); }} />` : null}
+      ${clickable && selected == null ? html`<span className="hint">Click any block to see what's behind it</span>` : null}
+    </div>`;
+  }
+
+  function Cta(props) {
+    if (!props.onClick) return null;
+    return html`<button className="cta" onClick=${props.onClick}>${props.label} →</button>`;
+  }
+
+  function Stat(props) {
+    return html`<div className="stat"><span className="muted small">${props.label}</span><span className=${'mono num ' + (props.size || '')} style=${{ color: props.color }}>${props.value}${props.unit ? html`<span className="unit">${props.unit}</span>` : null}</span>${props.note ? html`<span className="muted xs">${props.note}</span>` : null}</div>`;
+  }
+
+  var legendStates = ['intact', 'minor', 'street', 'home', 'wind', 'major', 'destroyed', 'power'];
+  var NYC = 'New York · Lower Manhattan and the Brooklyn waterfront';
+
+  // ---------- beat 1: generation 0 ----------
+  function Gen0(props) {
+    var ph = useState('reports'), phase = ph[0], setPhase = ph[1];
+    var tick = useTicker(true, phase, 250);
+    var map, panel, cta = null;
+    if (phase === 'reports') {
+      var n = Math.min(F.pins.length, 3 + tick * 2), frac = n / F.pins.length;
+      var grow = function (v) { return Math.round(v * frac).toLocaleString('en-US'); };
+      var feed = F.feed.slice(0, Math.min(F.feed.length, 1 + Math.floor(tick / 6)));
+      map = { cells: F.calm, caption: 'Incoming reports', meta: n + ' on the map', pins: F.pins.slice(0, n) };
+      panel = html`
+        <div className="intro"><h2>The storm hits. Reports flood in.</h2><p className="muted lead">${grow(10164)} reports so far from five kinds of sources. Some of them are wrong.</p></div>
+        <div className="counts">${[['911', 'call', F.counts.calls], ['311', 'ticket', F.counts.tickets], ['Drone', 'drone', F.counts.drone], ['Social', 'social', F.counts.social], ['Utility', 'utility', F.counts.utility]].map(function (c) {
+          return html`<div className="stat" key=${c[0]}><span className="muted small row gap6"><span style=${pinStyle(c[1])}></span>${c[0]}</span><span className="mono num md">${grow(c[2])}</span></div>`;
+        })}</div>
+        <div className="feed">${feed.map(function (f, k) {
+          return html`<div className="feedrow" key=${k}><span className="mono muted xs">${f.time}</span><span className="xs strong muted">${f.src}</span><span>${f.text}</span>${f.odd ? html`<span className="flag">Looks off</span>` : html`<span></span>`}</div>`;
+        })}</div>`;
+      cta = html`<${Cta} label="Run generation 0" onClick=${function () { setPhase('assess'); }} />`;
+    } else {
+      var mapped = Math.min(1024, tick * 48);
+      var cells = F.zero.cells.map(function (c, i) { return i < mapped ? c : F.calm[i]; });
+      var conf = F.zero.conf.map(function (c, i) { return i < mapped ? c : 1; });
+      var flagged = 0;
+      for (var i = 0; i < mapped; i++) if (CRIT[F.zero.cells[i]]) flagged++;
+      var doneMap = mapped >= 1024;
+      map = { cells: cells, conf: conf, caption: "Jev's map · generation 0", meta: doneMap ? 'the unevolved harness' : mapped + ' of 1,024 blocks', clickable: doneMap,
+        marks: doneMap ? [{ n: 1, r: Math.floor(F.zero.top[0].i / 32), c: F.zero.top[0].i % 32, tone: 'accent' }] : [] };
+      panel = html`
+        <div className="intro"><h2>Generation 0 triages every block</h2><p className="muted lead">The unevolved harness: the 12 reports nearest each block, taken at face value. Jev is frozen; it never changes in this demo.</p></div>
+        <div className="stats"><${Stat} label="Blocks flagged rescue-critical" value=${flagged} size="xxl" /></div>
+        <div className="col"><strong className="small pad8">Dispatch list, most confident first</strong>
+          ${!doneMap ? html`<span className="muted small">Mapping…</span>` : F.zero.top.map(function (t, k) {
+            return html`<div className=${'trow' + (k === 0 ? ' first' : '')} key=${k}><span className="mono muted xs">${k + 1}</span><span className="mono xs">${t.block}</span><span>${t.where}</span><span>${LABEL[t.state]}</span><span className="mono xs right">${t.conf}</span></div>`;
+          })}
+          ${doneMap ? html`<span className="xs muted" style=${{ paddingTop: 10 }}>The first crew goes to block ${F.zero.top[0].block}. Click it on the map.</span>` : null}
+        </div>`;
+      cta = doneMap ? html`<${Cta} label="Skip ahead: the assessment arrives" onClick=${props.onNext} />` : null;
+    }
+    return html`<div className="screen">
+      <${Header} place=${NYC} clock=${phase === 'reports' ? 'Tuesday 23:44 · landfall' : 'Wednesday 01:15'} mode="live" modeLabel="Live · generation 0" />
+      <div className="body">
+        <${MapStage} resetKey=${phase} ...${map} />
+        <div className="panel">${panel}<div className="panel-foot">${cta}<${S.DamageLegend} states=${legendStates} /></div></div>
+      </div>
+    </div>`;
+  }
+
+  // ---------- beat 2: the fitness signal ----------
+  function Fitness(props) {
+    var map = { cells: F.zero.cells, truth: F.truth, mode: 'diff', caption: 'Generation 0 vs the official assessment', meta: 'wrong blocks at full strength', clickable: true, showTruth: true,
+      marks: F.misreads.map(function (m) { return { n: m.n, r: m.r, c: m.c }; }) };
+    return html`<div className="screen">
+      <${Header} place=${NYC} clock="Nine days later · assessment in" mode="review" modeLabel="Fitness signal" />
+      <div className="body">
+        <${MapStage} resetKey="fit" ...${map} />
+        <div className="panel">
+          <div className="intro"><h2>The fitness signal arrives</h2><p className="muted lead">The official assessment shows exactly where generation 0 failed.</p></div>
+          <div className="stats"><${Stat} label="Blocks right" value=${pct(F.zero.acc)} size="xl" color="var(--critical)" /><${Stat} label="Rescue-critical found" value=${F.zero.critFound} unit=${'/' + F.zero.critTotal} size="xl" /><${Stat} label="Crews sent to the wrong block" value=${F.zero.falseAlarms} size="xl" /></div>
+          <div className="col gap12"><strong className="small">Evidence taken too literally</strong>
+            ${F.misreads.map(function (m) {
+              return html`<div className="misread" key=${m.n}><span className="mark static">${m.n}</span><div className="col gap2"><span className="strong">${m.title} <span className="muted normal">· ${m.where}</span></span><span className="small">${m.text}</span><span className="muted xs">Jev: ${m.jev} · Assessment: ${m.truth}</span></div></div>`;
+            })}
+          </div>
+          <div className="panel-foot"><${Cta} label="Evolve the harness" onClick=${props.onNext} /><${S.DamageLegend} states=${legendStates} /></div>
+        </div>
+      </div>
+    </div>`;
+  }
+
+  // ---------- beat 3: evolution, live ----------
+  function Evolution(props) {
+    var evo = props.evo, st = evo.st;
+    var cur = GENS[st.gen], plan = planFor(st.gen);
+    var bestIdx = bestOf(st.history), best = bestIdx == null ? null : GENS[bestIdx];
+    var phaseName = st.started && !st.done ? plan[st.phase][0] : '';
+    var base = best ? best.cells : F.calm, baseConf = best ? best.conf : null;
+    var cells = base, conf = baseConf, caption = best ? 'Backtest · best policy, generation ' + best.gen : 'Backtest · waiting to start', meta = best ? pct(best.dev) + ' on past storms' : '';
+    var mapped = 0;
+    if (phaseName === 'Backtest' && cur.cells) {
+      mapped = Math.floor((st.pt / plan[st.phase][1]) * 1024);
+      cells = cur.cells.map(function (c, i) { return i < mapped ? c : base[i]; });
+      conf = cur.cells.map(function (c, i) { return i < mapped ? cur.conf[i] : (baseConf ? baseConf[i] : 1); });
+      caption = 'Backtest · generation ' + cur.gen; meta = mapped.toLocaleString('en-US') + ' of 1,024 blocks';
+    } else if ((phaseName === 'Validate' || phaseName === 'Verdict') && cur.cells) {
+      cells = cur.cells; conf = cur.conf; caption = 'Backtest · generation ' + cur.gen; meta = pct(cur.dev) + ' on past storms';
+    }
+
+    // generation card content
+    var showResult = st.started && (st.done || phaseName === 'Validate' || phaseName === 'Verdict');
+    var showVerdict = st.started && (st.done || phaseName === 'Verdict');
+    var shown = st.done ? GENS[bestOf(st.history)] : cur;
+    var verdict = !showVerdict ? null : shown.status === 'baseline' ? { t: 'Baseline', c: 'var(--ink)', bg: 'var(--surface-sunken)' }
+      : shown.status === 'kept' ? { t: 'Kept', c: 'var(--good)', bg: 'var(--good-soft)' }
+      : shown.status === 'rejected' ? { t: 'Rejected', c: 'var(--critical)', bg: 'var(--critical-soft)' }
+      : { t: 'Skipped by memory', c: 'var(--ink-muted)', bg: 'var(--surface-raised)' };
+    var why = !showVerdict ? '' : st.done ? 'The evolved policy is saved to the lineage.'
+      : shown.status === 'baseline' ? 'Starting point for selection.'
+      : shown.status === 'kept' ? 'Validation rose ' + Math.abs(shown.valDelta * 100).toFixed(1) + ' points. It joins the lineage.'
+      : shown.status === 'rejected' ? 'The backtest rose, but validation fell ' + Math.abs(shown.valDelta * 100).toFixed(1) + ' points. The gate throws it out.'
+      : shown.note;
+    var status = !st.started ? '' : st.done ? 'Evolution finished: 8 generations.' : {
+      Propose: 'Reading the last generation’s mistakes and writing one change…',
+      Compile: 'Compiling the policy into a MongoDB aggregation pipeline…',
+      Backtest: 'Backtest on past storms: Jev is mapping ' + mapped.toLocaleString('en-US') + ' of 1,024 blocks…',
+      Validate: 'Scoring the validation town (scorer login only)…',
+      'Memory check': 'Checking memory for similar failed ideas…',
+      Verdict: why
+    }[phaseName];
+
+    var lineage = st.history.map(function (g) {
+      var G = GENS[g];
+      return { gen: g, parent: G.parent, status: G.status,
+        label: G.status === 'skipped' ? 'memory' : G.status === 'rejected' ? pts(G.valDelta) + ' val' : (G.val * 100).toFixed(1) };
+    });
+    var bestLine = [], tries = [], run = null;
+    GENS.forEach(function (G, g) {
+      var doneG = st.history.indexOf(g) >= 0;
+      if (doneG && (G.status === 'kept' || G.status === 'baseline')) run = G.val;
+      bestLine.push(doneG ? run : null);
+      tries.push(doneG && G.val != null ? G.val : null);
+    });
+
+    var phases = ['Propose', 'Compile', 'Backtest', 'Validate', 'Verdict'].map(function (name) {
+      var names = plan.map(function (p) { return p[0]; });
+      var idx = names.indexOf(name);
+      if (name === 'Compile' && idx < 0) idx = names.indexOf('Memory check');
+      var label = idx < 0 ? name + ' (skipped)' : (name === 'Compile' && cur.status === 'skipped' ? 'Memory check' : name);
+      var fill = 0, color = 'var(--accent)', on = false;
+      if (st.done) { fill = 100; color = 'var(--line-strong)'; }
+      else if (st.started && idx >= 0) {
+        if (idx < st.phase) { fill = 100; color = 'var(--good)'; on = true; }
+        else if (idx === st.phase) { fill = Math.round((st.pt / plan[idx][1]) * 100); on = true; }
+      }
+      return html`<div className="phase" key=${name}><div className="ptrack"><div style=${{ width: fill + '%', background: color }}></div></div><span className=${'xs' + (on ? '' : ' muted')}>${label}</span></div>`;
+    });
+
+    return html`<div className="screen">
+      <${Header} place="New York · past storms (backtest) and a validation town, assessments locked to the scorer" clock=${st.started ? 'Generation ' + cur.gen + ' of 7' : 'Ready'} mode="training" modeLabel=${!st.started ? 'Evolution ready' : st.done ? 'Evolution done' : 'Evolution live'} />
+      <div className="body gap48">
+        <div className="col gap10">
+          <${S.DamageMap} cells=${cells} confidence=${conf} cellSize=${14} caption=${caption} meta=${meta} label="Backtest map" />
+          <div className="whygate"><strong className="xs">Why there's a gate</strong><span className="xs">An earlier, ungated loop climbed from 46% to 93% on its own storms while held-out fell from 50% to 45%. It was fooling itself. Now every change must also raise a validation town it never trains on.</span></div>
+        </div>
+        <div className="col gap20 grow">
+          <div className="gencard">
+            ${!st.started ? html`
+              <div className="col gap12">
+                <span className="tag tag-train">Evolution</span>
+                <strong className="h2">Jev stays frozen. The harness evolves how it reads the reports.</strong>
+                <span className="muted">Each generation proposes one change with a prediction, backtests it on past storms, and keeps it only if the validation town improves.</span>
+                <button className="cta" onClick=${evo.start}>Start evolution</button>
+              </div>` : html`
+              <div className="row between"><strong className="h2">${st.done ? 'Generation ' + shown.gen + ' · the evolved harness' : 'Generation ' + cur.gen}</strong>
+                ${verdict ? html`<span className="verdict" style=${{ color: verdict.c, background: verdict.bg }}>${verdict.t}</span>` : html`<span className="verdict muted">${phaseName}…</span>`}</div>
+              <span className="hyp">${st.done ? 'Kept changes: ' + GENS.filter(function (G) { return G.status === 'kept'; }).length + ' · rejected: 1 · skipped by memory: 1' : cur.hyp}</span>
+              <div className="genstats">
+                <${Stat} label="Prediction" value=${!st.done && cur.predicted != null ? '+' + (cur.predicted * 100).toFixed(0) : '—'} size="md" note="points on validation" />
+                <${Stat} label="Fitness · backtest" value=${showResult && shown.dev != null ? pct(shown.dev) : '—'} size="md" note="past storms" />
+                <${Stat} label="Selection · validation" value=${showResult && shown.val != null ? pct(shown.val) : '—'} size="md" color=${showVerdict && shown.status === 'rejected' ? 'var(--critical)' : 'var(--ink)'} note=${showResult && shown.valDelta != null ? pts(shown.valDelta) + ' vs the lineage' : 'town it never trains on'} />
+              </div>
+              <div className="phases">${phases}</div>
+              <span className="mono xs" style=${{ color: showVerdict && shown.status === 'rejected' ? 'var(--critical)' : showVerdict && shown.status === 'kept' ? 'var(--good)' : 'var(--ink-muted)' }}>${status}</span>`}
+          </div>
+          <div className="col gap6">
+            <div className="row between"><strong className="small">Lineage</strong><span className="xs muted">Kept changes stack on the line. Rejected and remembered ideas hang off it.</span></div>
+            <${S.LineageTree} gens=${lineage} total=${8} current=${st.started && !st.done ? cur.gen : null} width=${800} height=${150} label="Lineage of the harness" />
+          </div>
+          <div className="row gap24 end">
+            <${S.ScoreCurve} train=${bestLine} heldout=${tries} xLabels=${GENS.map(function (G) { return 'Gen ' + G.gen; })} trainLabel="Lineage, validation" heldoutLabel="Each proposal" min=${0.2} max=${1} width=${480} height=${150} label="Validation score by generation" />
+            <div className="push"><${Cta} label="Replay tonight with the evolved harness" onClick=${props.onNext} /></div>
+          </div>
+        </div>
+      </div>
+    </div>`;
+  }
+
+  // ---------- beat 4: replay ----------
+  function Replay(props) {
+    var map = { cells: F.evolved.cells, conf: F.evolved.conf, caption: "Jev's map · evolved harness", meta: 'same night, replayed', clickable: true, showTruth: true,
+      marks: F.misreads.map(function (m) { return { n: m.n, r: m.r, c: m.c, tone: 'good' }; }) };
+    return html`<div className="screen">
+      <${Header} place=${NYC} clock="Replay of Tuesday night" mode="review" modeLabel="Adaptation proven" />
+      <div className="body">
+        <${MapStage} resetKey="replay" ...${map} />
+        <div className="panel">
+          <div className="intro"><h2>The evolved harness, on the same night</h2><p className="muted lead">Same reports. Same frozen Jev. Only the harness changed. Tonight's storm is scored once, never trained on.</p></div>
+          <div className="compare">
+            <div className="crow head"><span></span><span>Generation 0</span><span>Evolved</span></div>
+            ${[['Blocks right', pct(F.zero.acc), pct(F.evolved.acc)], ['Rescue-critical blocks found (of ' + F.zero.critTotal + ')', F.zero.critFound, F.evolved.critFound], ['Crews sent to the wrong block', F.zero.falseAlarms, F.evolved.falseAlarms]].map(function (c) {
+              return html`<div className="crow" key=${c[0]}><span>${c[0]}</span><span className="mono before">${c[1]}</span><span className="mono after">${c[2]}</span></div>`;
+            })}
+          </div>
+          <div className="col gap10"><strong className="small">Generation 0's four misreads, now handled</strong>
+            ${F.misreads.map(function (m) {
+              return html`<div className="misread" key=${m.n}><span className="mark static good">${m.n}</span><span className="small">${m.title}: fixed by generation ${FIXED_BY[m.n]}.</span></div>`;
+            })}
+          </div>
+          <div className="panel-foot"><${Cta} label="What did it learn?" onClick=${props.onNext} /><${S.DamageLegend} states=${legendStates} /></div>
+        </div>
+      </div>
+    </div>`;
+  }
+
+  // ---------- beat 5: what it learned ----------
+  function Learned() {
+    var rules = GENS.filter(function (G) { return G.status === 'kept' && G.rule; }).map(function (G) { return { text: G.rule, gen: G.gen }; });
+    var town = F.heldTown;
+    return html`<div className="screen">
+      <${Header} place="The evolved harness" clock="After 7 generations" mode="review" modeLabel="What it learned" />
+      <div className="body gap64">
+        <div className="col gap20 grow">
+          <div className="intro"><span className="tag tag-live">The policy is the product</span><h2 className="big">What it learned</h2>
+            <p className="muted lead">Five rules the harness discovered on its own, each traced to the generation that found it. Jev never changed. Only these did.</p></div>
+          <${S.PolicyRules} rules=${rules} />
+          <p className="pitch">We froze the model and let the harness evolve how it reads the world: gated, remembered, and proven on a storm it never saw.</p>
+        </div>
+        <div className="col gap12" style=${{ width: 420, flex: 'none' }}>
+          <span className="tag tag-train">A town it never saw</span>
+          <${S.DamageMap} cells=${town.cells} confidence=${town.conf} cellSize=${12} caption=${town.name + ' · blind'} meta="scored once" label=${town.name + ' damage map'} />
+          <div className="row gap24">
+            <${Stat} label="Blocks right" value=${pct(town.acc)} size="xl" color="var(--good)" />
+            <${Stat} label="Rescue-critical found" value=${town.critFound} unit=${'/' + town.critTotal} size="xl" />
+          </div>
+          <span className="xs muted">Same harness, its own lineage. Scored once against the official assessment; never used for selection.</span>
+        </div>
+      </div>
+    </div>`;
+  }
+
+  // ---------- shell ----------
+  var BEATS = ['Generation 0', 'Fitness signal', 'Evolution', 'Replay', 'What it learned'];
+
+  function App() {
+    var evo = useEvolution();
+    var s1 = useState(1), step = s1[0], setStep = s1[1];
+    var go = function (n) { setStep(Math.max(1, Math.min(BEATS.length, n))); };
+    var stepRef = useRef(step); stepRef.current = step;
+    useEffect(function () {
+      function onKey(e) {
+        if (e.target && /input|textarea|select/i.test(e.target.tagName)) return;
+        if (e.key === 'ArrowRight') go(stepRef.current + 1);
+        if (e.key === 'ArrowLeft') go(stepRef.current - 1);
+      }
+      window.addEventListener('keydown', onKey);
+      return function () { window.removeEventListener('keydown', onKey); };
+    }, []);
+    var next = function () { go(step + 1); };
+    var screen = step === 1 ? html`<${Gen0} onNext=${next} />`
+      : step === 2 ? html`<${Fitness} onNext=${next} />`
+      : step === 3 ? html`<${Evolution} evo=${evo} onNext=${next} />`
+      : step === 4 ? html`<${Replay} onNext=${next} />`
+      : html`<${Learned} />`;
+    var est = evo.st;
+    var evoLabel = !est.started ? 'Evolution not started' : est.done ? 'Evolution done · 7 generations' : 'Evolving · generation ' + est.gen + ' of 7';
+    return html`<div className="app">
+      ${screen}
+      <nav className="presenter" aria-label="Presenter controls">
+        <div className="row gap10">
+          ${!est.started ? html`<button className="dark" onClick=${evo.start}>Start evolution</button>` : html`<button className="ghost" onClick=${evo.reset}>Reset</button>`}
+          <span className="xs row gap6">${est.started && !est.done ? html`<span className="live-dot"></span>` : null}<span className=${est.started ? '' : 'muted'}>${evoLabel}</span></span>
+        </div>
+        <div className="steps">${BEATS.map(function (name, i) {
+          var n = i + 1, on = n === step;
+          return html`<button key=${n} className=${'step' + (on ? ' on' : '')} aria-label=${'Beat ' + n + ': ' + name} aria-current=${on ? 'step' : 'false'} onClick=${function () { go(n); }}>${on ? n + ' · ' + name : n}</button>`;
+        })}</div>
+        <div className="row gap8">
+          <span className="muted xs">← → keys</span>
+          <button className="ghost" disabled=${step === 1} onClick=${function () { go(step - 1); }}>Back</button>
+          <button className="dark" disabled=${step === BEATS.length} onClick=${next}>Next</button>
+        </div>
+      </nav>
+    </div>`;
+  }
+
+  function fit() {
+    var stage = document.getElementById('stage'), wrap = document.getElementById('wrap');
+    var k = Math.min(window.innerWidth / 1440, window.innerHeight / 964);
+    stage.style.transform = 'scale(' + k + ')';
+    wrap.style.width = Math.floor(1440 * k) + 'px';
+    wrap.style.height = Math.floor(964 * k) + 'px';
+  }
+  window.addEventListener('resize', fit);
+  fit();
+
+  ReactDOM.createRoot(document.getElementById('stage')).render(html`<${App} />`);
+})();
+</script>

@@ -89,3 +89,83 @@ export interface DiffCardProps {
   className?: string;
 }
 export declare function DiffCard(props: DiffCardProps): JSX.Element;
+
+// ScoreCurve also accepts:
+//   refs?: { value: number; label: string }[]  dashed reference lines, e.g. "No harness" and "Best possible"
+//   xLabels?: string[]                         one label per point, e.g. ["S1 run 1", …] or storm names
+//   trainLabel?, heldoutLabel?: string         legend names, e.g. "Tuning runs", "Blind first look"
+//   train and heldout may contain null to leave gaps (sparse blind scores).
+
+/** The 12 answers Jev chooses between for each block. */
+export type DamageState =
+  | "intact" | "minor" | "street" | "home" | "wind" | "major" | "destroyed"
+  | "fire" | "road" | "power" | "shelter" | "hospital";
+/** Scenery drawn on the map but never scored. */
+export type MapScenery = "water" | "park";
+export declare const STATES: { key: DamageState; label: string; fill: string; glyph?: string; critical?: boolean }[];
+
+export interface DamageMapProps {
+  /** Grid side in blocks. Default 32. */
+  size?: number;
+  /** size*size entries, row-major: Jev's answer per block, or scenery. */
+  cells: (DamageState | MapScenery)[];
+  /** 0..1 per block, drawn as opacity in "guess" mode. */
+  confidence?: number[];
+  /** The official assessment, row-major. Needed for "truth" and "diff". */
+  truth?: (DamageState | MapScenery)[];
+  /** guess: Jev's map. truth: the official assessment. diff: only wrong blocks at full strength. */
+  mode?: "guess" | "truth" | "diff";
+  /** Block size in px. Default 16 (32 blocks = 544px with streets). */
+  cellSize?: number;
+  /** Street gap in px. Default 1 at 10px blocks and up, else 0. */
+  gap?: number;
+  /** Service glyphs. Default on at 12px blocks and up. */
+  glyphs?: boolean;
+  /** Index of the selected block, outlined in accent. */
+  selected?: number;
+  /** Makes blocks clickable; receives the block index. */
+  onSelect?: (index: number) => void;
+  caption?: string;
+  meta?: string;
+  label?: string;
+  className?: string;
+}
+export declare function DamageMap(props: DamageMapProps): JSX.Element;
+
+export interface DamageLegendProps {
+  /** Which states to list, in order. Default all 12. */
+  states?: DamageState[];
+  /** 1 for a single column. Default 2. */
+  columns?: 1 | 2;
+  /** Tag rescue-critical states. */
+  markCritical?: boolean;
+  className?: string;
+}
+export declare function DamageLegend(props: DamageLegendProps): JSX.Element;
+
+export interface LineageGen {
+  gen: number;
+  /** Generation the change was tried on (the best policy at the time). */
+  parent: number | null;
+  status: "baseline" | "kept" | "rejected" | "skipped";
+  /** Short label: validation score on the main line, reason on dead ends. */
+  label?: string;
+}
+export interface LineageTreeProps {
+  gens: LineageGen[];
+  /** Generation budget, so nodes keep their x position as the list grows. */
+  total?: number;
+  /** Generation in progress, drawn as a dashed ring on the main line. */
+  current?: number;
+  width?: number;
+  height?: number;
+  label?: string;
+  className?: string;
+}
+export declare function LineageTree(props: LineageTreeProps): JSX.Element;
+
+export interface PolicyRulesProps {
+  rules: { text: string; gen: number }[];
+  className?: string;
+}
+export declare function PolicyRules(props: PolicyRulesProps): JSX.Element;

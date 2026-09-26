@@ -1,0 +1,36 @@
+<!-- @dsCard group="Maps" height=300 subtitle="Jev's map, the official assessment and the differences" -->
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>DamageMap</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@75..125,500..700&family=IBM+Plex+Sans:wght@400;600&family=JetBrains+Mono:wght@400;500;600&display=swap">
+</head>
+<body>
+<div id="root" class="sl-stage"></div>
+<script>
+  var S = window.Sightline, h = React.createElement, N = 32;
+  // Example data: a river bend with surge flooding along its banks and a wind swath.
+  var seed = 7; function r() { seed = (seed * 1664525 + 1013904223) % 4294967296; return seed / 4294967296; }
+  var truth = [], guess = [], conf = [];
+  for (var y = 0; y < N; y++) for (var x = 0; x < N; x++) {
+    var river = 14 + Math.round(6 * Math.sin(y / 6));
+    var d = Math.abs(x - river);
+    var s = d <= 1 ? 'water' : d === 2 ? (r() < 0.7 ? 'home' : 'street') : d <= 4 ? (r() < 0.5 ? 'street' : 'minor') : 'intact';
+    if (s === 'intact' && Math.abs(x + y - 44) < 3 && r() < 0.6) s = r() < 0.2 ? 'major' : 'wind';
+    if (s === 'intact' && r() < 0.05) s = ['power', 'road', 'minor'][Math.floor(r() * 3)];
+    truth.push(s);
+  }
+  truth[5 * N + 26] = 'hospital'; truth[24 * N + 4] = 'shelter'; truth[20 * N + 23] = 'fire';
+  truth.forEach(function (s) {
+    if (s === 'water') { guess.push(s); conf.push(1); return; }
+    var ok = r() < 0.8; guess.push(ok ? s : ['intact', 'street', 'home', 'minor', 'wind'][Math.floor(r() * 5)]); conf.push(ok ? 0.7 + 0.3 * r() : 0.2 + 0.3 * r());
+  });
+  ReactDOM.createRoot(document.getElementById('root')).render(h(React.Fragment, null,
+    h(S.DamageMap, { cells: guess, confidence: conf, cellSize: 7, caption: "Jev's map", meta: 'blind' }),
+    h(S.DamageMap, { cells: guess, truth: truth, mode: 'truth', cellSize: 7, caption: 'Assessment' }),
+    h(S.DamageMap, { cells: guess, truth: truth, mode: 'diff', cellSize: 7, caption: 'Differences' })
+  ));
+</script>
+</body>
+</html>
