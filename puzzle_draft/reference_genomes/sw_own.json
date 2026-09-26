@@ -1,0 +1,12 @@
+{
+  "id": "sw_own",
+  "rationale": "PRIVATE sweep",
+  "prediction": "",
+  "ops": [
+    {
+      "op": "include_own",
+      "k": 3
+    }
+  ],
+  "format": "raw"
+}

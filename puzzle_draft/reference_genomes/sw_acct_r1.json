@@ -1,0 +1,21 @@
+{
+  "id": "sw_acct_r1",
+  "rationale": "PRIVATE sweep",
+  "prediction": "",
+  "ops": [
+    {
+      "op": "include_own",
+      "k": 3
+    },
+    {
+      "op": "include_related",
+      "scope": "same_account",
+      "radius": 1,
+      "show": "raw",
+      "filter": "all",
+      "k": 9,
+      "max_tickets": 99
+    }
+  ],
+  "format": "relative"
+}

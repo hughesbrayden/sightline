@@ -1,0 +1,8 @@
+# Secrets: each collaborator keeps their own key locally (copy .env.example to .env)
+.env
+
+# Local caches and generated output
+__pycache__/
+*.pyc
+puzzle_draft/cache/
+out/

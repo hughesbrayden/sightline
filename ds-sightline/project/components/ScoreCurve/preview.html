@@ -1,0 +1,21 @@
+<!-- @dsCard group="Charts" height=220 subtitle="Training vs held-out balanced accuracy by generation" -->
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>ScoreCurve</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@75..125,500..700&family=IBM+Plex+Sans:wght@400;600&family=JetBrains+Mono:wght@400;500;600&display=swap">
+</head>
+<body>
+<div id="root" class="sl-stage"></div>
+<script>
+  var S = window.Sightline, h = React.createElement;
+  // Example data: 20 generations.
+  var train   = [0.58, 0.59, 0.61, 0.61, 0.64, 0.66, 0.66, 0.68, 0.70, 0.70, 0.73, 0.74, 0.74, 0.77, 0.79, 0.79, 0.81, 0.83, 0.84, 0.86];
+  var heldout = [0.56, 0.56, 0.58, 0.59, 0.61, 0.62, 0.63, 0.64, 0.66, 0.66, 0.68, 0.69, 0.70, 0.72, 0.73, 0.74, 0.75, 0.77, 0.78, 0.80];
+  ReactDOM.createRoot(document.getElementById("root")).render(
+    h(S.ScoreCurve, { train: train, heldout: heldout, baseline: 0.58, width: 420, height: 160 })
+  );
+</script>
+</body>
+</html>

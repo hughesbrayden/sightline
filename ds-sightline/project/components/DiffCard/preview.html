@@ -1,0 +1,27 @@
+<!-- @dsCard group="Lineage" height=280 subtitle="What one mutation changed in the context policy, and whether it paid off" -->
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>DiffCard</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@75..125,500..700&family=IBM+Plex+Sans:wght@400;600&family=JetBrains+Mono:wght@400;500;600&display=swap">
+</head>
+<body>
+<div id="root" class="sl-stage"></div>
+<script>
+  var S = window.Sightline, h = React.createElement;
+  // Example data.
+  ReactDOM.createRoot(document.getElementById("root")).render(
+    h(S.DiffCard, {
+      gen: 15, parent: 14, status: "passed", predicted: 0.05, actual: 0.041,
+      changes: [
+        { knob: "suppress", op: "add", text: "Drop sensors S4 and S7: they state 0.90 reliability but score 0.61." },
+        { knob: "derive", op: "add", text: "Row fill count, written as an aggregation pipeline." },
+        { knob: "retrieve", op: "change", text: "Exact cell match first, then 4 nearest by vector search." },
+        { knob: "represent", op: "change", text: "Group sensor reads; strongest evidence first." }
+      ]
+    })
+  );
+</script>
+</body>
+</html>

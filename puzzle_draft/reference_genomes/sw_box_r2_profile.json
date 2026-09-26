@@ -1,0 +1,21 @@
+{
+  "id": "sw_box_r2_profile",
+  "rationale": "PRIVATE sweep",
+  "prediction": "",
+  "ops": [
+    {
+      "op": "include_own",
+      "k": 3
+    },
+    {
+      "op": "include_related",
+      "scope": "box",
+      "radius": 2,
+      "show": "profile",
+      "filter": "all",
+      "k": 3,
+      "max_tickets": 99
+    }
+  ],
+  "format": "relative"
+}

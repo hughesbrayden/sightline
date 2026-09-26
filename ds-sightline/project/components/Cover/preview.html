@@ -1,0 +1,99 @@
+<!-- @dsCard height=288 -->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Sightline</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@75..125,500..700&family=IBM+Plex+Sans:wght@400;600&display=swap">
+<style>
+  html, body { margin: 0; height: 100%; }
+  body { background: var(--surface); color: var(--ink); font-family: var(--font-sans); overflow: hidden; }
+  .cover { position: relative; height: 288px; overflow: hidden; }
+  .art { position: absolute; top: 0; left: 480px; width: 480px; height: 288px; overflow: hidden; }
+  .art svg { display: block; width: 480px; height: 288px; }
+  .deep { fill: var(--ink); }
+  .brand { fill: var(--accent); }
+  .tint { fill: var(--accent-soft); }
+  .held { fill: var(--series-heldout); }
+  .panel { rx: var(--radius-lg); }
+  .chip { rx: var(--radius-sm); }
+  .cellu { rx: var(--radius-cell); }
+  .cellu.hit { fill: var(--accent); }
+  .cellu.bg { fill: var(--surface); }
+  .cellu.faint { opacity: var(--conf-floor); }
+  .words { position: absolute; left: var(--space-6); bottom: var(--space-6); max-width: 440px; }
+  .name { margin: 0; font-family: var(--font-display); font-size: 80px; line-height: .92; font-weight: 600; font-stretch: 87.5%; letter-spacing: -0.02em; color: var(--ink); }
+  .tag { margin: var(--space-2) 0 0 2px; font-size: 14px; line-height: 20px; color: var(--ink-muted); }
+</style>
+</head>
+<body>
+<div class="cover">
+<div class="art" aria-hidden="true">
+<svg viewBox="0 0 480 288" width="480" height="288">
+<!--
+  blocks      ink 304x226 bled off the top and right (the instrument body, largest) · accent 168x128 (signal teal, the identity hue) · accent-soft 120x96 (relief tint) · series-heldout 96x32 once (it only ever means held-out) · about 40% of 960x288
+  arrangement one tall ink slab with satellites on the left, bottoms on one line space-6 above the edge, space-4 gutters
+  pattern     literal motif, from "confidence is opacity" and "pixels are square": a 8x6 heart in square cells at a space-6 pitch on the slab, left half at conf-floor opacity and right half solid, so the picture is half-resolved
+  scales      cells space-4 square at space-6 pitch, radius-cell 0; gutters space-4; panels radius-lg, the held-out chip radius-sm
+-->
+<rect class="tint panel" x="0" y="24" width="120" height="96" rx="10"/>
+<rect class="brand panel" x="0" y="136" width="168" height="128" rx="10"/>
+<rect class="deep panel" x="184" y="-10" width="304" height="226" rx="10"/>
+<rect class="held chip" x="184" y="232" width="96" height="32" rx="2"/>
+<rect class="cellu bg faint" x="232" y="40" width="16" height="16"/>
+<rect class="cellu hit faint" x="256" y="40" width="16" height="16"/>
+<rect class="cellu hit faint" x="280" y="40" width="16" height="16"/>
+<rect class="cellu bg faint" x="304" y="40" width="16" height="16"/>
+<rect class="cellu bg faint" x="328" y="40" width="16" height="16"/>
+<rect class="cellu hit" x="352" y="40" width="16" height="16"/>
+<rect class="cellu hit" x="376" y="40" width="16" height="16"/>
+<rect class="cellu bg faint" x="400" y="40" width="16" height="16"/>
+<rect class="cellu hit faint" x="232" y="64" width="16" height="16"/>
+<rect class="cellu hit faint" x="256" y="64" width="16" height="16"/>
+<rect class="cellu hit faint" x="280" y="64" width="16" height="16"/>
+<rect class="cellu hit faint" x="304" y="64" width="16" height="16"/>
+<rect class="cellu hit" x="328" y="64" width="16" height="16"/>
+<rect class="cellu hit" x="352" y="64" width="16" height="16"/>
+<rect class="cellu hit" x="376" y="64" width="16" height="16"/>
+<rect class="cellu hit" x="400" y="64" width="16" height="16"/>
+<rect class="cellu hit faint" x="232" y="88" width="16" height="16"/>
+<rect class="cellu hit faint" x="256" y="88" width="16" height="16"/>
+<rect class="cellu hit faint" x="280" y="88" width="16" height="16"/>
+<rect class="cellu hit faint" x="304" y="88" width="16" height="16"/>
+<rect class="cellu hit" x="328" y="88" width="16" height="16"/>
+<rect class="cellu hit" x="352" y="88" width="16" height="16"/>
+<rect class="cellu hit" x="376" y="88" width="16" height="16"/>
+<rect class="cellu hit" x="400" y="88" width="16" height="16"/>
+<rect class="cellu bg faint" x="232" y="112" width="16" height="16"/>
+<rect class="cellu hit faint" x="256" y="112" width="16" height="16"/>
+<rect class="cellu hit faint" x="280" y="112" width="16" height="16"/>
+<rect class="cellu hit faint" x="304" y="112" width="16" height="16"/>
+<rect class="cellu hit" x="328" y="112" width="16" height="16"/>
+<rect class="cellu hit" x="352" y="112" width="16" height="16"/>
+<rect class="cellu hit" x="376" y="112" width="16" height="16"/>
+<rect class="cellu bg faint" x="400" y="112" width="16" height="16"/>
+<rect class="cellu bg faint" x="232" y="136" width="16" height="16"/>
+<rect class="cellu bg faint" x="256" y="136" width="16" height="16"/>
+<rect class="cellu hit faint" x="280" y="136" width="16" height="16"/>
+<rect class="cellu hit faint" x="304" y="136" width="16" height="16"/>
+<rect class="cellu hit" x="328" y="136" width="16" height="16"/>
+<rect class="cellu hit" x="352" y="136" width="16" height="16"/>
+<rect class="cellu bg faint" x="376" y="136" width="16" height="16"/>
+<rect class="cellu bg faint" x="400" y="136" width="16" height="16"/>
+<rect class="cellu bg faint" x="232" y="160" width="16" height="16"/>
+<rect class="cellu bg faint" x="256" y="160" width="16" height="16"/>
+<rect class="cellu bg faint" x="280" y="160" width="16" height="16"/>
+<rect class="cellu hit faint" x="304" y="160" width="16" height="16"/>
+<rect class="cellu hit" x="328" y="160" width="16" height="16"/>
+<rect class="cellu bg faint" x="352" y="160" width="16" height="16"/>
+<rect class="cellu bg faint" x="376" y="160" width="16" height="16"/>
+<rect class="cellu bg faint" x="400" y="160" width="16" height="16"/>
+</svg>
+</div>
+<div class="words">
+<h1 class="name">Sightline</h1>
+<p class="tag">What the model sees decides what it gets right.</p>
+</div>
+</div>
+</body>
+</html>

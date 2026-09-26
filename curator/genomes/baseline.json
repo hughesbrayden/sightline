@@ -1,0 +1,12 @@
+{
+  "id": "baseline",
+  "rationale": "Current production policy: show Jev the ticket's own records only.",
+  "prediction": "n/a",
+  "ops": [
+    {
+      "op": "include_own",
+      "k": 3
+    }
+  ],
+  "format": "raw"
+}

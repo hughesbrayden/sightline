@@ -1,0 +1,30 @@
+<!-- @dsCard group="Lineage" height=96 subtitle="One chip per generation; the active one is outlined in accent" -->
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>LineageNode</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@75..125,500..700&family=IBM+Plex+Sans:wght@400;600&family=JetBrains+Mono:wght@400;500;600&display=swap">
+</head>
+<body>
+<div id="root" class="sl-stage"></div>
+<script>
+  var S = window.Sightline, h = React.createElement;
+  // Example data.
+  var nodes = [
+    { gen: 12, status: "accepted", score: 0.681, delta: 0.023 },
+    { gen: 13, status: "rejected", score: 0.669, delta: -0.012 },
+    { gen: 14, status: "accepted", score: 0.719, delta: 0.038 },
+    { gen: 15, status: "skipped", score: null, delta: null },
+    { gen: 16, status: "pending", score: null, delta: null }
+  ];
+  function App() {
+    var st = React.useState(14), active = st[0], setActive = st[1];
+    return h(React.Fragment, null, nodes.map(function (n) {
+      return h(S.LineageNode, Object.assign({ key: n.gen, active: n.gen === active, onClick: function () { setActive(n.gen); } }, n));
+    }));
+  }
+  ReactDOM.createRoot(document.getElementById("root")).render(h(App));
+</script>
+</body>
+</html>

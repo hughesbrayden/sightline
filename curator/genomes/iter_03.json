@@ -1,0 +1,53 @@
+{
+  "id": "iter_03",
+  "rationale": "LEARNED (iter_02, account_access glosses, BA 84.6% vs 71.2%, predicted 78%): the account_access vocabulary hypothesis was confirmed. account_access rose from 22% to 78% (21/27), login_or_device_alert/identity/'I have a question' tickets now route correctly at ~99%, and no_action slipped only from 99% to 97% (A01-W05, a lone product-usage record on a no_action ticket, went to account_access; product-usage is now 2 account_access / 2 no_action across traces). billing 88% (61/69), shipping 75% (12/16). Vocabulary is no longer the bottleneck. The remaining errors come from missing or uninformative own records. (a) No-record tickets: 5 billing tickets (A03-W03, A04-W02, A05-W07, A07-W03, A10-W06) and 1 account_access (A09-W15) went to no_action at 100%. (b) Tickets whose only record is 'Something isn't working', which occurs on billing 9, account_access 6, shipping 3 and no_action 1 traced tickets: shipping A11-W04/A11-W05 went to billing ~62%, account_access A06-W00 to billing 65%. (c) Wrong records (A11-W13, account_access with payment_page_error). Placing all 74 labeled traces on the account x week grid, over the iter_02 render, gives a clear picture: a billing core (~A03-A12 x W02-W13), a thin shipping band on its edge and a thin account_access band outside that, on a no_action background. In a box-radius-1 neighborhood, every no-record billing ticket has a billing majority (4-8 of 8 neighbors), and A09-W15 has an account_access majority. But ring tickets have mixed neighborhoods, so if Jev over-trusts neighbors the thin high-weight bands could erode. HYPOTHESIS: a compact neighbor profile will let Jev fill in missing own evidence, while own glossed records still dominate when present. CHANGE vs iter_02 (one treatment: neighbor context): add include_related scope=box radius=1 filter=all show=profile k=3 after own records, and switch format to relative so Jev can tell this ticket's records from related ones. Glosses and include_own are unchanged. CONFIRM: billing >= 94% with the no-record billing tickets correct in traces, and account_access and shipping each within 1 ticket of iter_02 (>= 74% and >= 69%). REFUTE (Jev over-trusts neighbors): account_access or shipping drops by 2 or more tickets, with ring tickets that have a correct own record flipped to the neighborhood majority in traces. In that case the next run will limit neighbor influence (filter lookalike, fewer tickets, or one scope). If billing does not improve, Jev ignores profiles and I will try raw neighbor lines.",
+  "prediction": "balanced accuracy ~86%",
+  "ops": [
+    {
+      "op": "gloss_value",
+      "source": "analytics-export",
+      "map": {
+        "admin-and-compliance": "in past routing almost always no_action (routine admin notice), rarely legal",
+        "payments": "in past routing usually billing",
+        "orders-and-delivery": "in past routing usually shipping",
+        "identity": "in past routing usually account_access (login, password, 2FA), rarely security",
+        "product-usage": "in past routing usually account_access (trouble getting into the product), rarely technical"
+      }
+    },
+    {
+      "op": "gloss_value",
+      "source": "event-log",
+      "map": {
+        "payment_page_error": "in past routing usually billing (failed or declined payment), not technical",
+        "order_or_return_page": "in past routing usually shipping (delivery status), rarely returns",
+        "reply_to_receipt_email": "in past routing usually no_action (reply to an automated receipt), not billing",
+        "data_export_requested": "in past routing usually no_action, not legal",
+        "login_or_device_alert": "in past routing usually account_access (locked out, 2FA or password trouble), rarely security",
+        "pricing_or_survey_page": "in past routing seen on account_access tickets, not sales"
+      }
+    },
+    {
+      "op": "gloss_value",
+      "source": "customer-form",
+      "map": {
+        "Just letting you know": "in past routing usually no_action",
+        "Something isn't working": "vague; in past routing usually billing or account_access, rarely technical",
+        "I have a question": "in past routing seen on account_access tickets, not sales",
+        "I need you to do something": "in past routing seen on account_access tickets, rarely technical"
+      }
+    },
+    {
+      "op": "include_own",
+      "k": 3
+    },
+    {
+      "op": "include_related",
+      "scope": "box",
+      "radius": 1,
+      "filter": "all",
+      "show": "profile",
+      "k": 3
+    }
+  ],
+  "format": "relative"
+}

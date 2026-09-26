@@ -1,0 +1,44 @@
+{
+  "queues_in_order": [
+    "billing",
+    "refunds",
+    "shipping",
+    "account_access",
+    "technical",
+    "integrations",
+    "sales",
+    "returns",
+    "feedback",
+    "security",
+    "legal",
+    "no_action"
+  ],
+  "descriptions": {
+    "billing": "charges, invoices, failed or declined payments",
+    "refunds": "refund requests, chargebacks, money back",
+    "shipping": "delivery status, delays, lost or misdelivered packages",
+    "account_access": "login problems, passwords, two-factor codes, locked accounts",
+    "technical": "bugs, errors, crashes, slowness in the product",
+    "integrations": "API, webhooks, third-party connectors",
+    "sales": "pricing, upgrades, plans, seats, discounts",
+    "returns": "sending items back, exchanges, return labels",
+    "feedback": "suggestions, compliments, feature ideas",
+    "security": "suspicious logins, phishing, exposed credentials",
+    "legal": "legal notices, data requests, privacy and compliance",
+    "no_action": "auto-replies, duplicates, empty or misdirected messages: close without routing"
+  },
+  "render_colors": {
+    "billing": "#DD2E44",
+    "refunds": "#F4900C",
+    "shipping": "#FFCC4D",
+    "account_access": "#77B255",
+    "technical": "#55ACEE",
+    "integrations": "#AA8DD8",
+    "sales": "#F4ABBA",
+    "returns": "#C1694F",
+    "feedback": "#FFFFFF",
+    "security": "#99AAB5",
+    "legal": "#292F33",
+    "no_action": "#1E232B"
+  }
+}

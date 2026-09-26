@@ -1,0 +1,45 @@
+{
+  "id": "iter_02",
+  "rationale": "LEARNED (iter_01, glosses on own records, BA 71.2% vs 45.9%, predicted 68%): the vocabulary hypothesis was confirmed. Per-queue accuracy was no_action 99%, billing 88%, shipping 75%, account_access 22% (down from 30%). Legal/technical/returns answers disappeared for glossed values, and Jev followed every gloss. What remains is concentrated in account_access, which is the costliest queue for BA (each ticket is worth ~0.9 BA points). Account_access tickets carry values I had not glossed, and Jev maps them to decoy queues: login_or_device_alert gave security ~60% / account_access ~40% on both traces, both truly account_access (A09-W14, A12-W09); product-usage gave technical, truly account_access on 2 of 3 traces (A07-W00, A13-W07; the third was no_action alongside reply_to_receipt_email); identity was account_access 1/1; pricing_or_survey_page gave sales 98%, truly account_access (A12-W11); 'I have a question' gave no_action 90%, truly account_access (A09-W01); 'I need you to do something' gave technical, truly account_access (A07-W00). None of these values has been seen on a billing or shipping ticket. All 33 traced no_action tickets carried only canonical no_action values, apart from one 'Something isn't working' and one product-usage. The render shows ~13 cells with security mass and several technical/sales cells, all on the rim of the billing blob, where the traced account_access tickets sit. The other remaining errors are no-record tickets (4 billing and 1 account_access in the worst 10, all sent to no_action at 100%) and the lone 'Something isn't working' tickets that Jev splits ~50/50 billing/account_access; both need neighbor context, which is deferred to the next run. HYPOTHESIS: most account_access losses are the same vocabulary problem. This run changes ONE thing vs iter_01: it adds glosses for the six account_access-associated values (strong: login_or_device_alert, identity, product-usage; weak, n=1 each, worded more softly: pricing_or_survey_page, 'I have a question', 'I need you to do something'). Everything else is identical, including the raw format and own records only. CONFIRM: account_access >= 45% with security/technical/sales answers largely gone from traces, and no_action still >= 95%. REFUTE: account_access < 35%, or no_action falls below 93% because the soft glosses pull no_action tickets into account_access. That would show which weak gloss to drop.",
+  "prediction": "balanced accuracy ~78%",
+  "ops": [
+    {
+      "op": "gloss_value",
+      "source": "analytics-export",
+      "map": {
+        "admin-and-compliance": "in past routing almost always no_action (routine admin notice), rarely legal",
+        "payments": "in past routing usually billing",
+        "orders-and-delivery": "in past routing usually shipping",
+        "identity": "in past routing usually account_access (login, password, 2FA), rarely security",
+        "product-usage": "in past routing usually account_access (trouble getting into the product), rarely technical"
+      }
+    },
+    {
+      "op": "gloss_value",
+      "source": "event-log",
+      "map": {
+        "payment_page_error": "in past routing usually billing (failed or declined payment), not technical",
+        "order_or_return_page": "in past routing usually shipping (delivery status), rarely returns",
+        "reply_to_receipt_email": "in past routing usually no_action (reply to an automated receipt), not billing",
+        "data_export_requested": "in past routing usually no_action, not legal",
+        "login_or_device_alert": "in past routing usually account_access (locked out, 2FA or password trouble), rarely security",
+        "pricing_or_survey_page": "in past routing seen on account_access tickets, not sales"
+      }
+    },
+    {
+      "op": "gloss_value",
+      "source": "customer-form",
+      "map": {
+        "Just letting you know": "in past routing usually no_action",
+        "Something isn't working": "vague; in past routing usually billing or account_access, rarely technical",
+        "I have a question": "in past routing seen on account_access tickets, not sales",
+        "I need you to do something": "in past routing seen on account_access tickets, rarely technical"
+      }
+    },
+    {
+      "op": "include_own",
+      "k": 3
+    }
+  ],
+  "format": "raw"
+}

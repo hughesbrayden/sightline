@@ -1,0 +1,58 @@
+<!-- @dsCard group="Puzzle" height=272 subtitle="Truth, an early guess and a late guess; opacity is confidence" -->
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>PuzzleGrid</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@75..125,500..700&family=IBM+Plex+Sans:wght@400;600&family=JetBrains+Mono:wght@400;500;600&display=swap">
+</head>
+<body>
+<div id="root" class="sl-stage"></div>
+<script>
+  var S = window.Sightline, h = React.createElement;
+  // Example image: a mushroom on sky. Legend: b blue, k void, r red, p paper, g green.
+  var ART = [
+    "bbbbbbbbbbbbbbbb",
+    "bbbbbkkkkkkbbbbb",
+    "bbbkkrrpprrrkkbb",
+    "bbkrrrpppprrrrkb",
+    "bkpprrrpprrrpprk",
+    "kpprrrrrrrrrrppk",
+    "krrrrppprrrrrrrk",
+    "krrrrpppprrrpprk",
+    "kkrrrrpprrrrrrkk",
+    "bkkkkkkkkkkkkkkb",
+    "bbbkppppppppkbbb",
+    "bbbkpkppppkpkbbb",
+    "bbbkpkppppkpkbbb",
+    "bbbkppppppppkbbb",
+    "ggggkkkkkkkkgggg",
+    "gggggggggggggggg"
+  ];
+  var KEY = { b: "blue", k: "void", r: "red", p: "paper", g: "green" };
+  var truth = [];
+  ART.forEach(function (row) { row.split("").forEach(function (ch) { truth.push(KEY[ch]); }); });
+
+  // Deterministic pseudo-random guesses at two quality levels (example data).
+  function rng(seed) { return function () { seed = (seed * 1664525 + 1013904223) % 4294967296; return seed / 4294967296; }; }
+  function guess(quality, seed) {
+    var r = rng(seed), cells = [], conf = [], right = 0;
+    truth.forEach(function (t) {
+      var ok = r() < quality;
+      var c = ok ? t : S.PALETTE[Math.floor(r() * 8)];
+      if (c === t) right++;
+      cells.push(c);
+      conf.push(ok ? 0.45 + 0.55 * quality * r() + 0.2 * quality : 0.1 + 0.35 * r());
+    });
+    return { cells: cells, conf: conf, right: right };
+  }
+  var early = guess(0.35, 7), late = guess(0.9, 11);
+
+  ReactDOM.createRoot(document.getElementById("root")).render(h(React.Fragment, null,
+    h(S.PuzzleGrid, { cells: truth, caption: "Truth", meta: "256 px", label: "Answer: a red mushroom on blue sky" }),
+    h(S.PuzzleGrid, { cells: early.cells, confidence: early.conf, caption: "Gen 2", meta: early.right + "/256 right" }),
+    h(S.PuzzleGrid, { cells: late.cells, confidence: late.conf, truth: truth, showErrors: true, caption: "Gen 14", meta: late.right + "/256 right" })
+  ));
+</script>
+</body>
+</html>

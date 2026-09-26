@@ -1,0 +1,39 @@
+{
+  "id": "iter_01",
+  "rationale": "LEARNED (baseline, own records only, BA 45.9%): dev labels use only 4 of the 12 queues (no_action 144, billing 69, account_access 27, shipping 16), so BA weights one account_access or shipping ticket 4-9x more than a no_action ticket. Most baseline errors are vocabulary mismatches, not missing data: Jev routes each system value to the queue whose description sounds closest, but in the labeled traces those values belong to other queues. admin-and-compliance was no_action in 8/8 traces (Jev: legal, often at 100%); reply_to_receipt_email no_action 7/7 (Jev splits billing/no_action); 'Just letting you know' no_action 6/6; payment_page_error billing 6/7 (Jev: technical); 'Something isn't working' billing 6 / account_access 3 / technical 0 (Jev: technical ~99%); order_or_return_page shipping 2/2 (Jev: returns); payments billing 2/2; orders-and-delivery shipping 2/3; data_export_requested no_action 1/1 (Jev: legal). Jev never predicted correctly when it said legal, technical or returns, and those queues have 0 dev tickets. A ticket with no records went to no_action at 100% (truth billing); that is a separate failure mode for neighbor context later. HYPOTHESIS: glossing each well-attested value with the queue it historically routes to will remove the semantic-mismatch errors. This run changes ONE thing vs baseline (adds glosses; same include_own k=3, same raw format) so the gain is attributable. product-usage and 'I need you to do something' (n=1 each) are deliberately left unglossed to see what they co-occur with. CONFIRM: BA >= 60%, legal/technical/returns mostly gone from traces, no_action accuracy > 75%, remaining worst traces dominated by no-record tickets, wrong records and the billing-vs-account_access ambiguity of 'Something isn't working'. REFUTE: BA < 52% or Jev still says legal/technical on glossed values (glosses ignored).",
+  "prediction": "balanced accuracy ~68%",
+  "ops": [
+    {
+      "op": "gloss_value",
+      "source": "analytics-export",
+      "map": {
+        "admin-and-compliance": "in past routing almost always no_action (routine admin notice), rarely legal",
+        "payments": "in past routing usually billing",
+        "orders-and-delivery": "in past routing usually shipping"
+      }
+    },
+    {
+      "op": "gloss_value",
+      "source": "event-log",
+      "map": {
+        "payment_page_error": "in past routing usually billing (failed or declined payment), not technical",
+        "order_or_return_page": "in past routing usually shipping (delivery status), rarely returns",
+        "reply_to_receipt_email": "in past routing usually no_action (reply to an automated receipt), not billing",
+        "data_export_requested": "in past routing usually no_action, not legal"
+      }
+    },
+    {
+      "op": "gloss_value",
+      "source": "customer-form",
+      "map": {
+        "Just letting you know": "in past routing usually no_action",
+        "Something isn't working": "vague; in past routing usually billing or account_access, rarely technical"
+      }
+    },
+    {
+      "op": "include_own",
+      "k": 3
+    }
+  ],
+  "format": "raw"
+}

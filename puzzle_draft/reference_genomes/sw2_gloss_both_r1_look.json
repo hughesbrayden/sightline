@@ -1,0 +1,55 @@
+{
+  "id": "sw2_gloss_both_r1_look",
+  "rationale": "PRIVATE sweep",
+  "prediction": "",
+  "ops": [
+    {
+      "op": "gloss_value",
+      "source": "analytics-export",
+      "map": {
+        "payments": "billing or refunds",
+        "orders-and-delivery": "shipping or returns",
+        "identity": "account_access or security",
+        "product-usage": "technical or integrations",
+        "plans-and-opinions": "sales or feedback",
+        "admin-and-compliance": "usually no_action (nothing to route); sometimes legal"
+      }
+    },
+    {
+      "op": "gloss_value",
+      "source": "customer-form",
+      "map": {
+        "Something isn't working": "billing, shipping, account_access or technical",
+        "I need you to do something": "refunds, returns, integrations or legal",
+        "I have a question": "sales",
+        "Just letting you know": "usually no_action; otherwise security or feedback"
+      }
+    },
+    {
+      "op": "gloss_value",
+      "source": "event-log",
+      "map": {
+        "payment_page_error": "billing or technical",
+        "order_or_return_page": "shipping or returns",
+        "login_or_device_alert": "account_access or security",
+        "data_export_requested": "integrations or legal",
+        "pricing_or_survey_page": "sales or feedback",
+        "reply_to_receipt_email": "usually an auto-reply (no_action); sometimes refunds"
+      }
+    },
+    {
+      "op": "include_own",
+      "k": 3
+    },
+    {
+      "op": "include_related",
+      "scope": "both",
+      "radius": 1,
+      "show": "raw",
+      "filter": "lookalike",
+      "k": 9,
+      "max_tickets": 99
+    }
+  ],
+  "format": "relative"
+}

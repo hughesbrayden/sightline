@@ -1,0 +1,54 @@
+{
+  "id": "iter_05",
+  "rationale": "LEARNED (iter_04, noise glosses for data_export_requested/plans-and-opinions + firmer pricing gloss, BA 93.4% vs 89.9%, predicted 92%): the noise-gloss hypothesis was confirmed. Legal disappeared from the traces, shipping 75% -> 88% (14/16; A04-W01 fixed), billing 97% -> 99% (68/69; A07-W02 fixed), no_action held at 99%, confident-but-wrong 3 -> 2. The worst-10 list now contains every remaining error (8 wrong: 2 shipping, 3 account_access, 1 billing, 2 no_action, matching the per-queue counts exactly). They fall into four kinds. (a) A12-W11 (account_access, own record only pricing_or_survey_page): my firmer gloss 'in past routing account_access, never sales' backfired. Jev went sales 70% (iter_03 wording 'seen on account_access tickets, not sales': sales 33% / account_access 27%; iter_02, same wording without neighbors: correct). Naming the decoy queue in a gloss for a value that already sounds like that queue ('pricing') acts as positive evidence, so the negation is ignored. This was my own regression. (b) Tickets in the thin bands whose only own record is 'Something isn't working' (shipping A11-W04/W05 and billing A11-W06 -> account_access; account_access A12-W10 -> billing). Their box neighborhoods genuinely mix queues. A11-W04/W05 have no shipping evidence anywhere in their neighborhood, so I treat them as unrecoverable with these systems. (c) Wrong own records: A11-W13 (account_access carrying payment_page_error; billing 100%). (d) no_action tickets with a lone account_access-glossed own record against an all-no_action profile (A01-W05 product-usage, A04-W15 identity). Each is worth only ~0.17 BA, and softening those glosses would put account_access tickets at risk (~0.9 BA each), so I leave them. HYPOTHESIS: naming 'sales' in the pricing gloss is what pulls A12-W11 to sales. Stating only the positive association, with a short description of the queue, will route it to account_access despite the mixed profile. CHANGE vs iter_04: ONE gloss text (pricing_or_survey_page -> 'in past routing seen on account_access tickets (sign-in or access trouble)'). Nothing else changes. CONFIRM: A12-W11 -> account_access (account_access 25/27 = 93%), and every other queue unchanged (shipping 14/16, billing 68/69, no_action 142/144). REFUTE: A12-W11 still goes to sales, meaning the value name alone drives sales, or it goes to no_action, meaning the profile dominates a weak own gloss. Either way the next step is a noise gloss, or accepting the loss.",
+  "prediction": "balanced accuracy ~94.5%",
+  "ops": [
+    {
+      "op": "gloss_value",
+      "source": "analytics-export",
+      "map": {
+        "admin-and-compliance": "in past routing almost always no_action (routine admin notice), rarely legal",
+        "payments": "in past routing usually billing",
+        "orders-and-delivery": "in past routing usually shipping",
+        "identity": "in past routing usually account_access (login, password, 2FA), rarely security",
+        "product-usage": "in past routing usually account_access (trouble getting into the product), rarely technical",
+        "plans-and-opinions": "not a routing signal: appears on tickets of every kind, never sales or feedback in past routing; route by this ticket's other records and nearby tickets"
+      }
+    },
+    {
+      "op": "gloss_value",
+      "source": "event-log",
+      "map": {
+        "payment_page_error": "in past routing usually billing (failed or declined payment), not technical",
+        "order_or_return_page": "in past routing usually shipping (delivery status), rarely returns",
+        "reply_to_receipt_email": "in past routing usually no_action (reply to an automated receipt), not billing",
+        "data_export_requested": "not a routing signal: in past routing it appeared on billing, shipping and no_action tickets alike, never legal; route by this ticket's other records and nearby tickets",
+        "login_or_device_alert": "in past routing usually account_access (locked out, 2FA or password trouble), rarely security",
+        "pricing_or_survey_page": "in past routing seen on account_access tickets (sign-in or access trouble)"
+      }
+    },
+    {
+      "op": "gloss_value",
+      "source": "customer-form",
+      "map": {
+        "Just letting you know": "in past routing usually no_action",
+        "Something isn't working": "vague; in past routing usually billing or account_access, rarely technical",
+        "I have a question": "in past routing seen on account_access tickets, not sales",
+        "I need you to do something": "in past routing seen on account_access tickets, rarely technical"
+      }
+    },
+    {
+      "op": "include_own",
+      "k": 3
+    },
+    {
+      "op": "include_related",
+      "scope": "box",
+      "radius": 1,
+      "filter": "all",
+      "show": "profile",
+      "k": 3
+    }
+  ],
+  "format": "relative"
+}

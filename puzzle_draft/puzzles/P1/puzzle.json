@@ -1,0 +1,13 @@
+{
+  "puzzle_id": "P1",
+  "accounts": 16,
+  "weeks": 16,
+  "tickets": 256,
+  "palette": "queues",
+  "records": 463,
+  "records_by_source": {
+    "analytics-export": 146,
+    "event-log": 157,
+    "customer-form": 160
+  }
+}

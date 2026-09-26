@@ -1,0 +1,97 @@
+/* Sightline components. Tokens come from tokens.css; fonts from Google Fonts (see README). */
+body { margin: 0; font-family: var(--font-sans); background: var(--surface); color: var(--ink); }
+
+.sl-stage { display: flex; flex-wrap: wrap; gap: var(--space-4); align-items: flex-start; padding: var(--space-4); }
+.sl-num { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+.sl-muted { color: var(--ink-muted); }
+.sl-small { font-size: 13px; line-height: 18px; }
+.sl-up { color: var(--good); }
+.sl-down { color: var(--critical); }
+.sl-label {
+  font-family: var(--font-sans); font-size: 11px; line-height: 16px; font-weight: 600;
+  letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-muted);
+}
+
+/* PuzzleGrid */
+.sl-puzzle { margin: 0; display: inline-flex; flex-direction: column; gap: var(--space-2); }
+.sl-grid { display: grid; width: max-content; background: var(--surface-sunken); border: 1px solid var(--line); }
+.sl-cell { border-radius: var(--radius-cell); }
+.sl-cell-wrong { box-shadow: inset 0 0 0 1px var(--ink), inset 0 0 0 2px var(--surface-raised); }
+.sl-puzzle-cap { display: flex; justify-content: space-between; align-items: baseline; gap: var(--space-2); font-size: 13px; line-height: 18px; }
+
+/* StatusBadge */
+.sl-badge {
+  display: inline-flex; align-items: center; gap: 6px; height: 22px; padding: 0 var(--space-2);
+  border-radius: var(--radius-sm); font-family: var(--font-sans); font-size: 12px; font-weight: 600;
+  line-height: 1; white-space: nowrap; background: var(--surface-sunken); color: var(--ink-muted);
+}
+.sl-badge::before { content: ""; width: 6px; height: 6px; background: currentColor; flex: none; }
+.sl-badge-passed { background: var(--good-soft); color: var(--good); }
+.sl-badge-rejected { background: var(--critical-soft); color: var(--critical); }
+.sl-badge-denied { background: var(--critical-soft); color: var(--critical); }
+.sl-badge-denied::before { background: transparent; box-shadow: inset 0 0 0 1.5px currentColor; width: 8px; height: 8px; }
+.sl-badge-running { background: var(--accent-soft); color: var(--accent); }
+.sl-badge-skipped::before { background: transparent; box-shadow: inset 0 0 0 1.5px currentColor; }
+
+/* LineageNode */
+.sl-node {
+  display: inline-grid; grid-template-columns: 1fr auto; column-gap: var(--space-2); row-gap: 2px;
+  align-items: baseline; min-width: 112px; padding: var(--space-2) 12px; box-sizing: border-box;
+  border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--surface-raised);
+  color: var(--ink); font: inherit; text-align: left;
+}
+button.sl-node { cursor: pointer; }
+button.sl-node:hover { border-color: var(--line-strong); }
+.sl-node:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.sl-node-score { font-size: 18px; line-height: 24px; }
+.sl-node-delta { font-size: 13px; line-height: 18px; justify-self: end; }
+.sl-node-mark { width: 8px; height: 8px; justify-self: end; align-self: center; }
+.sl-mark-accepted { background: var(--good); }
+.sl-mark-rejected { background: transparent; box-shadow: inset 0 0 0 1.5px var(--critical); }
+.sl-mark-pending { background: var(--accent); }
+.sl-mark-skipped { background: transparent; box-shadow: inset 0 0 0 1.5px var(--ink-muted); }
+.sl-node-rejected, .sl-node-skipped { border-style: dashed; border-color: var(--line-strong); background: var(--surface); }
+.sl-node-rejected .sl-node-score, .sl-node-skipped .sl-node-score { color: var(--ink-muted); }
+.sl-node-pending { border-color: var(--accent); }
+.sl-node-active { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+
+/* ScoreCurve */
+.sl-curve { margin: 0; display: inline-flex; flex-direction: column; gap: var(--space-2); max-width: 100%; }
+.sl-curve-svg { display: block; max-width: 100%; height: auto; }
+.sl-curve-svg text { font-family: var(--font-mono); font-size: 10px; fill: var(--ink-muted); }
+.sl-curve-grid { stroke: var(--line); stroke-width: 1; }
+.sl-base { stroke: var(--series-baseline); stroke-width: 1.5; stroke-dasharray: 4 4; }
+.sl-line-train, .sl-line-heldout { fill: none; stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+.sl-line-train { stroke: var(--series-train); }
+.sl-line-heldout { stroke: var(--series-heldout); }
+.sl-dot-train { fill: var(--series-train); }
+.sl-dot-heldout { fill: var(--series-heldout); }
+.sl-curve-svg .sl-end-train { fill: var(--series-train); font-weight: 600; }
+.sl-curve-svg .sl-end-heldout { fill: var(--series-heldout); font-weight: 600; }
+.sl-legend { display: flex; flex-wrap: wrap; gap: var(--space-4); font-size: 12px; line-height: 16px; color: var(--ink-muted); }
+.sl-key { display: inline-flex; align-items: center; gap: 6px; }
+.sl-key::before { content: ""; width: 14px; height: 0; border-top: 2px solid currentColor; }
+.sl-key-train::before { border-color: var(--series-train); }
+.sl-key-heldout::before { border-color: var(--series-heldout); }
+.sl-key-base::before { border-top: 2px dashed var(--series-baseline); }
+
+/* DiffCard */
+.sl-diff {
+  display: grid; gap: 12px; max-width: 460px; box-sizing: border-box; padding: var(--space-4);
+  border: 1px solid var(--line); border-radius: var(--radius-lg); background: var(--surface-raised); color: var(--ink);
+}
+.sl-diff-head { display: flex; justify-content: space-between; align-items: center; gap: var(--space-2); }
+.sl-diff-title { font-size: 15px; line-height: 22px; font-weight: 600; }
+.sl-diff-list { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-2); }
+.sl-diff-row { display: grid; grid-template-columns: 84px 14px 1fr; gap: var(--space-2); align-items: baseline; }
+.sl-diff-text { font-size: 14px; line-height: 20px; }
+.sl-op { font-size: 14px; font-weight: 600; text-align: center; }
+.sl-op-add { color: var(--good); }
+.sl-op-remove { color: var(--critical); }
+.sl-op-change { color: var(--accent); }
+.sl-diff-foot { display: flex; flex-wrap: wrap; gap: var(--space-4); padding-top: 12px; border-top: 1px solid var(--line); font-size: 13px; }
+.sl-diff-foot > span { display: inline-flex; align-items: baseline; gap: 6px; }
+
+@media (prefers-reduced-motion: no-preference) {
+  .sl-cell { transition: opacity 240ms ease-out, background-color 240ms ease-out; }
+}
