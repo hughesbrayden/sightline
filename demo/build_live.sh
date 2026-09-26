@@ -2,13 +2,13 @@
 # Build the Sightline demo wired to the live dashboard API (the recorded harness run in MongoDB).
 #   bash demo/build_live.sh          ->  dashboard/public/sightline.html  (the seven-beat app, src/app.js)
 #   bash demo/build_live.sh story    ->  dashboard/public/story.html      (the click-through story + arena, src/story.js)
-# Both are pinned to RUN (default live-1) so a new run in MongoDB never switches the demo mid-presentation.
+# Both are pinned to RUN (default live-2) so a new run in MongoDB never switches the demo mid-presentation.
 # Query params: ?run=live-1 picks a run; ?api=https://host uses another API; ?scenario=1 shows the illustrative story.
 set -euo pipefail
 cd "$(dirname "$0")"
 DS=../ds-sightline/project/components
 APP=${1:-app}
-RUN=${RUN:-live-1}
+RUN=${RUN:-live-2}
 if [ "$APP" = story ]; then OUT=../dashboard/public/story.html; else OUT=../dashboard/public/sightline.html; fi
 mkdir -p "$(dirname "$OUT")"
 {

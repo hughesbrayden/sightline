@@ -98,7 +98,7 @@ cmd_final() {
 
 cmd_publish() {
   local url=${1:-$API_URL}
-  say "Record the run for the offline fallback + start page ($url)"; node demo/snapshot.mjs "$url"
+  say "Record the run for the offline fallback + start page ($url)"; node demo/snapshot.mjs "$url" "${RUN:-live-2}"
   say "Build the stage demo on live data"; bash demo/build_live.sh
   say "Build the click-through story + arena on live data (the default demo) -> /story.html"; bash demo/build_live.sh story
   say "Build the example-data story (bannered) -> /story-example.html"; bash demo/build.sh

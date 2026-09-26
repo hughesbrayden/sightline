@@ -1,5 +1,5 @@
 // Record the recorded run as the demo's offline fallback, plus the headline numbers for the start page.
-//   node demo/snapshot.mjs [https://sightline-dashboard.vercel.app] [live-1]
+//   node demo/snapshot.mjs [https://sightline-dashboard.vercel.app] [live-2]
 // Writes dashboard/public/snapshot.json (API path -> response) and dashboard/lib/headline.json.
 import fs from "node:fs";
 import path from "node:path";
@@ -7,7 +7,7 @@ import { fileURLToPath } from "node:url";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const BASE = (process.argv[2] || "https://sightline-dashboard.vercel.app").replace(/\/$/, "");
-const RUN = process.argv[3] || "live-1";
+const RUN = process.argv[3] || "live-2";
 const snap = {};
 const realFetch = globalThis.fetch;
 globalThis.fetch = async (url) => {  // record every API response the demo makes, keyed by path
