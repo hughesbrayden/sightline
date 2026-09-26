@@ -107,7 +107,8 @@ def cmd_truth(args) -> None:
         town = Town(t)
         render(load_truth(t, "file"), town.mask, OUT / f"truth_{t}.png")
     tiles = [Image.open(OUT / f"truth_{t}.png") for t in storm.TOWNS]
-    sheet = Image.new("RGB", (4 * tiles[0].width + 30, 2 * tiles[0].height + 50), (20, 24, 30))
+    rows = -(-len(tiles) // 4)
+    sheet = Image.new("RGB", (4 * tiles[0].width + 30, rows * (tiles[0].height + 25)), (20, 24, 30))
     d = ImageDraw.Draw(sheet)
     for i, (t, tile) in enumerate(zip(storm.TOWNS, tiles)):
         x, y = (i % 4) * (tile.width + 10), (i // 4) * (tile.height + 25) + 20

@@ -66,10 +66,14 @@ SEA = "#16222E"
 LIFE_SAFETY = ["collapsed", "flooded_homes", "fire", "hospital_down"]
 # dev = past storms the curator trains on; val = the gate (pass/fail only); heldout = tonight, scored once;
 # cities = next season elsewhere (demo beat 7), also scored once with the frozen policy.
-SPLITS = {"dev": ["MIA1", "HOU1", "NOL1"], "val": ["NYC0"], "heldout": ["NYC1"], "cities": ["MIA2", "HOU2", "NOL2"]}
+SPLITS = {"dev": ["MIA1", "HOU1", "NOL1"], "val": ["NYC0"], "heldout": ["NYC1"], "cities": ["MIA2", "HOU2", "NOL2"],
+          # a second validation storm for the gate (paired bootstrap over NYC0 + HOU0): one storm is too noisy to
+          # gate on, since a single hospital-campus block moves balanced accuracy ~2 points. Last, so the order of
+          # the other towns is unchanged; every town has its own seed, so adding it changes no other storm.
+          "val2": ["HOU0"]}
 TOWNS = [t for ts in SPLITS.values() for t in ts]
 CITY = {"MIA": "miami", "HOU": "houston", "NOL": "nola", "NYC": "nyc"}
-SEEDS = {"MIA1": 101, "HOU1": 202, "NOL1": 303, "NYC0": 404, "NYC1": 505, "MIA2": 606, "HOU2": 707, "NOL2": 808}
+SEEDS = {"MIA1": 101, "HOU1": 202, "NOL1": 303, "NYC0": 404, "NYC1": 505, "MIA2": 606, "HOU2": 707, "NOL2": 808, "HOU0": 909}
 MIN_DEV_COUNT, MIN_TOWN_COUNT = 8, 2  # every state >= 8x across dev towns, >= 2x in each town
 SOURCES = ["911-call", "311", "social-post", "city-survey", "fire-dept", "pre-storm-map", "drone-pass", "utility-feed"]
 

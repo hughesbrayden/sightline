@@ -6,9 +6,16 @@
       step mode for an external curator (e.g. a Claude subagent): writes DIR/gNN_prompt.md and exits with code 3;
       the curator writes DIR/gNN_reply.json (the genome); rerun with --resume to score it and write the next prompt
 
-Blindness: the curator prompt holds only the brief, its own past genomes with dev scores and gate pass/fail,
-and the latest dev digest (scores + 30 traces). Every prompt is leak-checked before it is sent. Validation
-scores go to `gate_scores` (scorer login); held-out storms are never touched here.
+Blindness: the curator prompt holds only the brief, its own past genomes with dev scores and gate verdicts (with
+the pooled validation P(better) and the failed criterion, never validation traces), its notebook lessons, and the
+latest dev digest (scores + 30 traces + blocks fixed/broken). Every prompt is leak-checked before it is sent.
+Validation scores go to `gate_scores` (scorer login); held-out storms are never touched here.
+
+The gate (robust, from the harness lab): a paired, stratified bootstrap of the balanced-accuracy gain over both
+validation storms (NYC0 + HOU0) must give P(better) >= 0.90, dev may not drop more than 1 point, and expected harm
+(5 x missed life-safety blocks + false dispatches) may not rise more than 5%. The lab notebook stores one lesson
+per generation in MongoDB `memory` (vector-embedded) and retrieves the relevant ones with $vectorSearch; a
+proposal too close to a rejected lesson is skipped unscored.
 One stdout line per generation: gen, dev, val, gate, tokens, seconds.
 """
 
@@ -25,15 +32,20 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import httpx  # noqa: E402
 
+import gatestats as G  # noqa: E402
 import storm  # noqa: E402
 from jevlib import get_backend, load_env  # noqa: E402
 from storm_harness import GenomeError, compile_pipeline, load_genome, validate  # noqa: E402
 from storm_run import GENOMES, OUT, evaluate  # noqa: E402
 
 BRIEF = Path(__file__).resolve().parent / "storm_curator_brief.md"
+BRIEF_GATE = Path(__file__).resolve().parent / "storm_curator_brief_gate.md"
 DEFAULT_MODEL = "z-ai/glm-5.2"
-GATE_MARGIN = 0.01  # validation balanced accuracy must beat the best by this much (noise floor)
+GATE_P = 0.90         # P(child better than parent on validation), paired stratified bootstrap
+DEV_TOLERANCE = 0.01  # dev balanced accuracy may not drop more than this
+HARM_SLACK = 0.05     # expected harm may not rise more than this share of the parent's validation harm
 DEV, VAL = storm.SPLITS["dev"], storm.SPLITS["val"]
+GATE_TOWNS = VAL + storm.SPLITS.get("val2", [])  # the gate pools both validation storms; the dashboard shows VAL
 FORBIDDEN = re.compile(r"\b(" + "|".join(storm.TOWNS + ["secret", "assessments", "storm_reference", "ref_full",
                                                          "truth.json", "val_score", "held-?out", "Miami",
                                                          "Houston", "Orleans", "NYC", "Manhattan"]) + r")\b", re.I)
@@ -68,7 +80,7 @@ def near_duplicate(genome: dict, seen: list) -> dict | None:
     return None
 
 
-def build_prompt(brief: str, history: list, digest: str) -> str:
+def build_prompt(brief: str, history: list, digest: str, lessons: list = ()) -> str:
     rows = ["| gen | status | dev balanced | life-safety found | false dispatches | gate | genome |", "|---|---|---|---|---|---|---|"]
     for h in history:
         d = h.get("dev") or {}
@@ -76,12 +88,17 @@ def build_prompt(brief: str, history: list, digest: str) -> str:
         ls = f"{d['life_safety_found']}/{d['life_safety_total']}" if d else "-"
         fd = d.get("false_dispatches", "-") if d else "-"
         g = {k: h["genome"][k] for k in ("ops", "format") if k in h["genome"]}
-        rows.append(f"| {h['gen']} | {h['status']} | {bal} | {ls} | {fd} | {h.get('gate') or '-'} | `{json.dumps(g)}` |")
+        gate = h.get("gate") or "-"
+        if h.get("reason") and h.get("gate") != "baseline":
+            gate = f"{gate}: {h['reason']}"
+        rows.append(f"| {h['gen']} | {h['status']} | {bal} | {ls} | {fd} | {gate} | `{json.dumps(g)}` |")
     best = max((h for h in history if h["status"] == "accepted"), key=lambda h: h["gen"])
     return "\n".join([
         brief, "", "## Your history (the newest accepted genome is the one to build on)", "", *rows, "",
         f"Current accepted genome (gen {best['gen']}):", "```json", json.dumps(best["genome"], indent=1), "```", "",
-        "## Latest digest", "", digest, "", "Propose the next genome. Return only the JSON object."])
+        "## Relevant lessons from your notebook", "",
+        *([f"- (gen {l['gen']}, {l['verdict']}) {l['text']}" for l in lessons] or ["(none yet)"]), "",
+        "## Latest digest", "", digest, "", "Propose the next genome: one targeted change. Return only the JSON object."])
 
 
 def curator_step(prompt: str, model: str, key: str) -> tuple[dict, dict]:
@@ -177,6 +194,8 @@ def main() -> None:
     parser.add_argument("--curator", choices=["openrouter", "inbox"], default="openrouter",
                         help="inbox: an external curator answers prompt files (step mode, see the docstring)")
     parser.add_argument("--inbox", type=Path, help="with --curator inbox: folder for gNN_prompt.md / gNN_reply.json")
+    parser.add_argument("--notebook", choices=["atlas", "local", "off"], default="atlas",
+                        help="lab notebook: Atlas vector search (default), a local TF-IDF fallback, or none")
     args = parser.parse_args()
     load_env()
     if args.curator == "inbox":
@@ -189,8 +208,32 @@ def main() -> None:
     run = args.run or now().strftime("run-%m%d-%H%M")
     backend = get_backend(args.backend)
     lineage = Lineage(run, enabled=not args.no_mongo)
-    brief = BRIEF.read_text(encoding="utf-8") + value_catalog()
-    print(f"  {run}: curator {model}, backend {backend.name}, budget {args.gens} generations, gate margin {GATE_MARGIN:.0%}")
+    brief = BRIEF.read_text(encoding="utf-8") + value_catalog() + BRIEF_GATE.read_text(encoding="utf-8")
+    notebook = None
+    if args.notebook != "off":
+        from notebook import Notebook
+        notebook = Notebook(run, OUT / "lineage" / f"{run}_notebook.jsonl",
+                            "local" if args.no_mongo else args.notebook)
+    towns = DEV + GATE_TOWNS
+    print(f"  {run}: curator {model}, backend {backend.name}, budget {args.gens} generations, gate P(better) >= "
+          f"{GATE_P} on {'+'.join(GATE_TOWNS)}, notebook {notebook.backend if notebook else 'off'}")
+
+    def keyed(res, ts):
+        truth = {(t, c): s for t in ts for c, s in res["truths"][t].items()}
+        return {k: res["answers"][k] for k in truth}, truth
+
+    def lesson(rec, verdict, note=""):
+        if not notebook:
+            return
+        d, v = rec.get("dev_gain"), rec.get("val_gain")
+        pc = rec.get("predicted")
+        text = (f"Hypothesis: {rec['hypothesis']}. Change: {rec['change']}. "
+                f"Predicted dev change: {'n/a' if pc is None else f'{pc:+.1%}'}. "
+                + (f"Result: dev {d['gain']:+.1%}, validation {v['gain']:+.1%} (P better {v['p_better']:.2f}), "
+                   f"harm {v['harm_delta']:+d}. " if d else "")
+                + (f"Fixed {rec['fixed']}. Broke {rec['broke']}. " if rec.get("fixed") is not None else "")
+                + f"Verdict: {verdict}{f' ({note})' if note else ''}.")
+        notebook.write({"gen": rec["gen"], "verdict": verdict, "text": text, "signature": rec["signature"]})
 
     if args.resume:  # rebuild the curator's own history from the local lineage; it sees nothing new
         docs = {}
@@ -198,21 +241,24 @@ def main() -> None:
             d = json.loads(line)
             docs[d["gen"]] = d
         history = [{"gen": g, "status": d["status"], "gate": d.get("gate"), "dev": d.get("dev_score"),
+                    "reason": d.get("gate_reason") or d.get("note"),
                     "genome": {"id": d.get("genome_id"), "ops": d.get("ops", []), "format": d.get("format", "raw"),
                                "rationale": d.get("rationale"), "prediction": d.get("prediction")}}
                    for g, d in sorted(docs.items()) if d["status"] != "running"]
         best = max((h for h in history if h["status"] == "accepted"), key=lambda h: h["gen"])
-        summ = json.loads((OUT / "runs" / best["genome"]["id"] / "summary.json").read_text(encoding="utf-8"))
-        best_val = summ["towns"][VAL[0]]["balanced_accuracy"]
+        best_res = evaluate(best["genome"], towns, backend, args.truth, quiet=True)  # cached: free
+        best_val = best_res["towns"][VAL[0]]["balanced_accuracy"]
         last = max((h for h in history if h.get("dev")), key=lambda h: h["gen"])
-        digest = (OUT / "runs" / last["genome"]["id"] / "digest.md").read_text(encoding="utf-8")
+        last_dir = OUT / "runs" / last["genome"]["id"]
+        digest = next((last_dir / f).read_text(encoding="utf-8") for f in ("digest_curator.md", "digest.md")
+                      if (last_dir / f).exists())
         first = max(docs) + 1
         print(f"  resuming {run} at gen {first}: best gen {best['gen']} (val {best_val:.1%})")
     else:
         base = load_genome(args.seed or GENOMES / "baseline.json")
         base = {**base, "id": f"{run}_g00"}
         t0 = time.perf_counter()
-        res = evaluate(base, DEV + VAL, backend, args.truth, quiet=True)
+        res = best_res = evaluate(base, towns, backend, args.truth, quiet=True)
         best_val = res["towns"][VAL[0]]["balanced_accuracy"]
         history = [{"gen": 0, "status": "accepted", "genome": base, "dev": dev_summary(res["dev"]), "gate": "baseline"}]
         lineage.policy({"gen": 0, "parent": None, "status": "accepted", "genome_id": base["id"], "ops": base["ops"],
@@ -228,7 +274,8 @@ def main() -> None:
     for gen in range(first, first + args.gens):
         t0 = time.perf_counter()
         parent = max(h["gen"] for h in history if h["status"] == "accepted")
-        prompt = build_prompt(brief, history, digest)
+        lessons = notebook.relevant(digest[:4000], k=5) if notebook and notebook.lessons else []
+        prompt = build_prompt(brief, history, digest, lessons)
         leak_check(prompt)
         genome, usage, error = None, {}, None
         for attempt in range(4):
@@ -255,23 +302,57 @@ def main() -> None:
         base_doc = {"gen": gen, "parent": parent, "genome_id": genome["id"], "ops": genome["ops"],
                     "format": genome.get("format", "raw"), "compiled_pipeline": compile_pipeline(genome),
                     "rationale": genome.get("rationale"), "prediction": genome.get("prediction"), "curator": usage}
+        parent_genome = next(h["genome"] for h in history if h["gen"] == parent)
+        rationale = genome.get("rationale")
+        hyp = rationale.get("hypothesis", "") if isinstance(rationale, dict) else ""
+        rec = {"gen": gen, "hypothesis": hyp, "change": G.ops_diff(parent_genome, genome),
+               "signature": G.signature(parent_genome, genome), "predicted": G.predicted_change(genome)}
+        base_doc["signature"] = rec["signature"]
+        skip = None
         if dup := near_duplicate(genome, history):
-            history.append({"gen": gen, "status": "skipped", "genome": genome, "gate": f"repeat of gen {dup['gen']}"})
-            lineage.policy({**base_doc, "status": "skipped", "note": f"near-duplicate of gen {dup['gen']}; not scored"})
-            print(f"  gen {gen}  skipped    near-duplicate of gen {dup['gen']} ({usage.get('seconds')}s curator)")
+            skip = f"near-duplicate of gen {dup['gen']}"
+        elif notebook and (near := notebook.near_rejected(f"{hyp}. Change: {rec['change']}", rec["signature"])):
+            skip = f"too close to rejected lesson from gen {near['gen']} (similarity {near['similarity']})"
+        if skip:
+            history.append({"gen": gen, "status": "skipped", "genome": genome, "gate": None, "reason": skip})
+            lineage.policy({**base_doc, "status": "skipped", "note": f"{skip}; not scored"})
+            lesson(rec, "skipped", skip)
+            print(f"  gen {gen}  skipped    {skip} ({usage.get('seconds')}s curator)")
             continue
         lineage.policy({**base_doc, "status": "running"})
-        res = evaluate(genome, DEV + VAL, backend, args.truth, quiet=True)
+        res = evaluate(genome, towns, backend, args.truth, quiet=True)
         val = res["towns"][VAL[0]]["balanced_accuracy"]
-        gate = "pass" if val > best_val + GATE_MARGIN else "fail"
+        pa_dev, t_dev = keyed(best_res, DEV)
+        ch_dev, _ = keyed(res, DEV)
+        pa_val, t_val = keyed(best_res, GATE_TOWNS)
+        ch_val, _ = keyed(res, GATE_TOWNS)
+        d_gain, v_gain = G.paired_gain(pa_dev, ch_dev, t_dev), G.paired_gain(pa_val, ch_val, t_val)
+        harm_cap = HARM_SLACK * v_gain["harm_parent"]
+        fails = ([f"validation P(better) {v_gain['p_better']:.2f} < {GATE_P}"] if v_gain["p_better"] < GATE_P else []) + \
+                ([f"dev {d_gain['gain']:+.1%} below -{DEV_TOLERANCE:.0%}"] if d_gain["gain"] < -DEV_TOLERANCE else []) + \
+                ([f"harm +{v_gain['harm_delta']} over the cap {harm_cap:.0f}"] if v_gain["harm_delta"] > harm_cap else [])
+        gate = "fail" if fails else "pass"
+        reason = "; ".join(fails) or f"P(better) {v_gain['p_better']:.2f}, validation {v_gain['gain']:+.1%}"
         status = "accepted" if gate == "pass" else "rejected"
+        fl = G.flips(pa_dev, ch_dev, t_dev)
+        top = lambda d, sign: ", ".join(f"{s} {sign}{n}" for s, n in sorted(d.items(), key=lambda kv: -kv[1])[:5]) or "none"  # noqa: E731
+        rec.update({"dev_gain": d_gain, "val_gain": v_gain, "fixed": top(fl["fixed"], "+"), "broke": top(fl["broke"], "-")})
         if gate == "pass":
-            best_val = val
-        history.append({"gen": gen, "status": status, "genome": genome, "dev": dev_summary(res["dev"]), "gate": gate})
-        lineage.policy({**base_doc, "status": status, "dev_score": dev_summary(res["dev"]), "gate": gate})
+            best_val, best_res = val, res
+        history.append({"gen": gen, "status": status, "genome": genome, "dev": dev_summary(res["dev"]), "gate": gate,
+                        "reason": reason})
+        lineage.policy({**base_doc, "status": status, "dev_score": dev_summary(res["dev"]), "gate": gate,
+                        "gate_reason": reason, "gate_detail": {"dev": d_gain, "val": v_gain, "val_towns": GATE_TOWNS,
+                                                               "p_threshold": GATE_P, "harm_cap": harm_cap}})
         lineage.scores(gen, res, gate)
-        digest = res["digest"].read_text(encoding="utf-8")
-        print(f"  gen {gen}  {status:<9}  dev {res['dev']['balanced_accuracy']:.1%}  val {val:.1%}  gate {gate:<4}  "
+        lesson(rec, status, reason)
+        digest = res["digest"].read_text(encoding="utf-8") + (
+            f"\n\n## What this genome changed on the past storms, vs the accepted genome (gen {parent})\n\n"
+            f"Change: {rec['change']}\n\nBlocks fixed, by true state: {rec['fixed']}\n\n"
+            f"Blocks broken, by true state: {rec['broke']}\n")
+        (OUT / "runs" / genome["id"] / "digest_curator.md").write_text(digest, encoding="utf-8")  # read on --resume
+        print(f"  gen {gen}  {status:<9}  dev {res['dev']['balanced_accuracy']:.1%}  val {val:.1%}  "
+              f"P {v_gain['p_better']:.2f} harm {v_gain['harm_delta']:+d}  gate {gate:<4}  "
               f"curator {usage.get('prompt_tokens')}+{usage.get('completion_tokens')} tok ${usage.get('cost') or 0:.3f}  "
               f"jev {res['stats']['tokens']} tok  {time.perf_counter() - t0:.0f}s  | {genome.get('rationale', {}).get('hypothesis', '')[:90]}")
     accepted = [h for h in history if h["status"] == "accepted"]
