@@ -161,3 +161,35 @@ def context(prep: Prepared, x: int, y: int) -> tuple[str, list[dict]]:
                                             for v in _votes({"source": src, "value": value}, 0.6 * k / total)]})
     body = "\n".join(f"- {ln['text']}" for ln in lines) if lines else "(no records)"
     return f"{header(x, y)}\nRecords:\n{body}", lines
+
+
+def compile_pipeline(genome: dict) -> list[dict]:
+    """The genome as MongoDB aggregation pipelines over `reports` (one per selection op), for the lineage and
+    dashboard. $$town / $$x / $$y are bound per block at run time, so the stored pipeline has no coordinates."""
+    excluded = sorted({s for op in genome["ops"] if op["op"] == "exclude_source" for s in _sources(op)})
+    branches = [{"case": {"$and": [{"$eq": ["$source", src]}, {"$eq": ["$value", value]}]},
+                 "then": {"$concat": ["$value", f" ({gloss})"]}}
+                for op in genome["ops"] if op["op"] == "gloss_value" for src in sorted(_sources(op))
+                for value, gloss in op["map"].items()]
+    gloss = [{"$set": {"value": {"$switch": {"branches": branches, "default": "$value"}}}}] if branches else []
+    stages = []
+    for op in genome["ops"]:
+        match = {"source": {"$nin": excluded}} if excluded else {}
+        if srcs := sorted(_sources(op)):
+            match["source"] = {"$in": [s for s in srcs if s not in excluded]}
+        if op.get("only_values"):
+            match["value"] = {"$in": op["only_values"]}
+        if op["op"] == "include_own":
+            stages.append({"op": "include_own", "pipeline": [
+                {"$match": {"town": "$$town", "x": "$$x", "y": "$$y", **match}}, *gloss,
+                {"$limit": int(op.get("k", 3))}]})
+        elif op["op"] == "include_related":
+            radius = int(op.get("radius", 1))
+            pipe = [{"$geoNear": {"near": ["$$x", "$$y"], "distanceField": "dist", "maxDistance": radius + 0.5,
+                                  "query": {"town": "$$town", **match}}},
+                    {"$match": {"dist": {"$gt": 0}}}, *gloss]
+            if op.get("show", "raw") == "profile":
+                pipe += [{"$group": {"_id": {"source": "$source", "value": "$value"}, "n": {"$sum": 1}}},
+                         {"$sort": {"n": -1}}]
+            stages.append({"op": "include_related", "pipeline": pipe + [{"$limit": int(op.get("k", BUDGET))}]})
+    return stages

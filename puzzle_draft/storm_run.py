@@ -142,13 +142,9 @@ def cmd_preview(args) -> None:
         print(f"\n--- {genome['id']} | {args.town} block ({x}, {y}) ---\n{context(prep, x, y)[0]}")
 
 
-def cmd_run(args) -> None:
-    genome = load_genome(args.genome)
-    split_names = args.split.split(",")
-    if {"heldout", "cities"} & set(split_names) and not args.final:
-        sys.exit("held-out and cities are scored once, at the end: pass --final")
-    towns = [t for sp in split_names for t in storm.SPLITS[sp]]
-    backend = get_backend(args.backend, use_cache=not args.no_cache)
+def evaluate(genome: dict, towns: list, backend, truth_source: str = "mongo", workers: int = 16,
+             quiet: bool = False) -> dict:
+    """Run one genome on the given towns and score it. The scorer part reads truth; nothing else does."""
     criteria = storm.DESCRIPTIONS
     jobs, contexts = [], {}
     for t in towns:
@@ -162,38 +158,53 @@ def cmd_run(args) -> None:
         return job, backend.ask(state, criteria, [v for ln in lines for v in ln["votes"]], instructions=INSTRUCTIONS)
 
     start = time.perf_counter()
-    answers = dict(run_parallel(ask, jobs, args.workers))
+    answers = dict(run_parallel(ask, jobs, workers))
     wall = time.perf_counter() - start
     stats = {"backend": backend.name, "calls": len(jobs), "cached": sum(1 for a in answers.values() if a.get("cached")),
              "tokens": sum(a.get("tokens") or 0 for a in answers.values()), "wall_s": round(wall, 1)}
-
     run_dir = OUT / "runs" / genome["id"]
-    per_town, pooled = {}, {}
+    per_town, pooled, truths = {}, {}, {}
     for t in towns:
-        truth = load_truth(t, args.truth)
+        truth = truths[t] = load_truth(t, truth_source)
         town_answers = {c: answers[(t, c)] for c in truth}
         s = per_town[t] = score(town_answers, truth)
         split = next(k for k, v in storm.SPLITS.items() if t in v)
         if split == "dev":
             pooled.update({(t, c): (answers[(t, c)], truth[c]) for c in truth})
-        mask = Town(t).meta["mask"]
-        render({c: a["choice"] for c, a in town_answers.items()}, mask, run_dir / f"{t}.png",
+        render({c: a["choice"] for c, a in town_answers.items()}, Town(t).meta["mask"], run_dir / f"{t}.png",
                conf={c: a["confidence"] for c, a in town_answers.items()})
         (run_dir / f"{t}.json").write_text(json.dumps(
             {"scores": s, "cells": [{"x": c[0], "y": c[1], "pick": a["choice"], "conf": a["confidence"],
                                      "probs": a["probs"]} for c, a in town_answers.items()]}), encoding="utf-8")
-        tag = " [FAKE]" if backend.name == "fake" else ""
-        print(f"  {genome['id']} {t:<5} {split:<7}{tag} bal {s['balanced_accuracy']:.1%}  acc {s['accuracy']:.1%}  "
-              f"life-safety {s['life_safety_found']}/{s['life_safety_total']}  false-dispatch {s['false_dispatches']}  "
-              f"brier {s['brier']:.3f}  conf {s['mean_confidence']:.2f}")
+        if not quiet:
+            tag = " [FAKE]" if backend.name == "fake" else ""
+            print(f"  {genome['id']} {t:<5} {split:<7}{tag} bal {s['balanced_accuracy']:.1%}  acc {s['accuracy']:.1%}  "
+                  f"life-safety {s['life_safety_found']}/{s['life_safety_total']}  false-dispatch {s['false_dispatches']}"
+                  f"  brier {s['brier']:.3f}  conf {s['mean_confidence']:.2f}")
+    dev = None
     if pooled:
         dev = score({k: a for k, (a, _) in pooled.items()}, {k: tr for k, (_, tr) in pooled.items()})
         write_digest(run_dir / "digest.md", genome, dev, stats, pooled, contexts)
-        print(f"  {genome['id']} DEV pooled: bal {dev['balanced_accuracy']:.1%} | {stats['calls']} calls "
-              f"({stats['cached']} cached), {stats['tokens']} tokens, {wall:.1f}s | digest {run_dir.relative_to(ROOT)}/digest.md")
     (run_dir / "summary.json").write_text(json.dumps(
-        {"genome": genome, "towns": per_town, "stats": stats,
+        {"genome": genome, "towns": per_town, "dev": dev, "stats": stats,
          "created": datetime.now(timezone.utc).isoformat()}, indent=2), encoding="utf-8")
+    return {"towns": per_town, "dev": dev, "stats": stats, "answers": answers, "truths": truths,
+            "digest": run_dir / "digest.md" if pooled else None}
+
+
+def cmd_run(args) -> None:
+    genome = load_genome(args.genome)
+    split_names = args.split.split(",")
+    if {"heldout", "cities"} & set(split_names) and not args.final:
+        sys.exit("held-out and cities are scored once, at the end: pass --final")
+    towns = [t for sp in split_names for t in storm.SPLITS[sp]]
+    backend = get_backend(args.backend, use_cache=not args.no_cache)
+    r = evaluate(genome, towns, backend, args.truth, args.workers)
+    if r["dev"]:
+        st = r["stats"]
+        print(f"  {genome['id']} DEV pooled: bal {r['dev']['balanced_accuracy']:.1%} | {st['calls']} calls "
+              f"({st['cached']} cached), {st['tokens']} tokens, {st['wall_s']}s | digest "
+              f"{r['digest'].relative_to(ROOT)}")
 
 
 def write_digest(path: Path, genome: dict, s: dict, stats: dict, pooled: dict, contexts: dict) -> None:
