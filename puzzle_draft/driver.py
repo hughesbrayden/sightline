@@ -79,15 +79,17 @@ def curator_step(prompt: str, model: str, key: str) -> tuple[dict, dict]:
     start = time.perf_counter()
     r = httpx.post("https://openrouter.ai/api/v1/chat/completions", timeout=300,
                    headers={"Authorization": f"Bearer {key}"},
-                   json={"model": model, "max_tokens": 6000, "usage": {"include": True},
+                   json={"model": model, "max_tokens": 16000, "usage": {"include": True},  # room for hidden reasoning
                          "response_format": {"type": "json_object"},
                          "messages": [{"role": "user", "content": prompt}]})
     r.raise_for_status()
     d = r.json()
-    text = d["choices"][0]["message"].get("content") or ""
+    choice = d["choices"][0]
+    text = choice["message"].get("content") or ""
     m = re.search(r"\{.*\}", text, re.S)
     if not m:
-        raise GenomeError(f"no JSON object in the reply: {text[:200]!r}")
+        raise GenomeError(f"no JSON object in the reply ({choice.get('finish_reason')}, provider "
+                          f"{d.get('provider')}): {text[:200]!r}")
     u = d.get("usage", {})
     return json.loads(m.group(0)), {"model": model, "prompt_tokens": u.get("prompt_tokens"),
                                     "completion_tokens": u.get("completion_tokens"), "cost": u.get("cost"),
@@ -193,7 +195,7 @@ def main() -> None:
         prompt = build_prompt(brief, history, digest)
         leak_check(prompt)
         genome, usage, error = None, {}, None
-        for attempt in range(3):
+        for attempt in range(4):
             try:
                 genome, usage = curator_step(prompt if not error else
                                              f"{prompt}\n\nYour last reply was invalid: {error}. Fix it.", model, key)
@@ -205,7 +207,7 @@ def main() -> None:
         if genome is None:
             history.append({"gen": gen, "status": "invalid", "genome": {"ops": []}, "gate": None})
             lineage.policy({"gen": gen, "parent": parent, "status": "invalid", "error": error, "curator": usage})
-            print(f"  gen {gen}  INVALID after 3 tries: {error}")
+            print(f"  gen {gen}  INVALID after 4 tries: {error}")
             continue
         base_doc = {"gen": gen, "parent": parent, "genome_id": genome["id"], "ops": genome["ops"],
                     "format": genome.get("format", "raw"), "compiled_pipeline": compile_pipeline(genome),
