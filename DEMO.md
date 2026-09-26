@@ -157,11 +157,25 @@ python puzzle_draft/mongo_setup.py probe --run my-demo             # 7. tripwire
 
 ### Score tonight's storm (once, at the very end)
 
-```bash
-python puzzle_draft/storm_run.py run out/storm/lineage/<run>_best.json --split heldout,cities --final
-```
+Anyone on the team can do this from `main`. It needs only `OPENROUTER_API_KEY` and `MONGODB_URI_SCORER` in
+`.env`; no admin login and no Jev cache.
 
-This writes to `heldout_scores`. Never feed these numbers back into the loop.
+1. **Wait for the final genome.** The best genome of the finished run is committed at
+   `puzzle_draft/storm_genomes/<run>_best.json`; its `id` ends in the generation number, for example `live-1_g03`.
+   Agree in chat who runs step 3: it can run only once per genome.
+2. `python puzzle_draft/storm_run.py build`: regenerates the storm files locally. They're gitignored, and the
+   rebuild is byte-identical to what's in Atlas.
+3. Score it:
+
+   ```bash
+   python puzzle_draft/storm_run.py run puzzle_draft/storm_genomes/live-1_best.json \
+     --split heldout,cities --final --run live-1 --gen 3
+   ```
+
+   This scores NYC1 (tonight) and MIA2, HOU2 and NOL2 (next season): 3,111 Jev calls, about $0.12 and 1 minute.
+   It writes `heldout_scores` plus the map rows the dashboard shows. It refuses to run if that genome was
+   already scored.
+4. Paste the printed lines into the status section below. Never feed these numbers back into the loop.
 
 ### The v4 fallback (ticket routing)
 

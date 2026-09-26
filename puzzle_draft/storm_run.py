@@ -199,10 +199,23 @@ def cmd_run(args) -> None:
         sys.exit("held-out and cities are scored once, at the end: pass --final")
     towns = [t for sp in split_names for t in storm.SPLITS[sp]]
     backend = get_backend(args.backend, use_cache=not args.no_cache)
-    r = evaluate(genome, towns, backend, args.truth, args.workers)
-    if args.final:  # once-only scoring of tonight's storm and the other cities: record it (scorer login)
+    if args.final:
         from db import connect
         scorer = connect("scorer")
+        if done := scorer.heldout_scores.count_documents({"genome_id": genome["id"], "town": {"$in": towns}}):
+            sys.exit(f"{genome['id']} already has {done} once-only scores; held-out is scored once. Not running.")
+        if args.run is None or args.gen is None:
+            sys.exit("--final needs --run and --gen (the lineage generation this genome came from), for the dashboard")
+    r = evaluate(genome, towns, backend, args.truth, args.workers)
+    if args.final:  # once-only scoring of tonight's storm and the other cities: record it (scorer login)
+        rows = [{"ts": datetime.now(timezone.utc), "meta": {"run": args.run, "gen": args.gen, "town": t},
+                 "x": c[0], "y": c[1], "pick": a["choice"], "conf": a["confidence"],
+                 "correct": a["choice"] == r["truths"][t][c], "truth": r["truths"][t][c],
+                 "probs": {k: round(v, 4) for k, v in a["probs"].items() if v >= 0.005},
+                 "lines": r["contexts"][(t, c)].split("\n")}
+                for (t, c), a in r["answers"].items()]
+        scorer.runs.insert_many(rows, ordered=False)
+        print(f"  wrote {len(rows)} map rows for the dashboard (run {args.run}, gen {args.gen})")
         for t in towns:
             s = r["towns"][t]
             scorer.heldout_scores.insert_one({
@@ -287,6 +300,8 @@ def main() -> None:
     p.add_argument("--workers", type=int, default=16)
     p.add_argument("--no-cache", action="store_true")
     p.add_argument("--final", action="store_true", help="allow the once-only held-out / cities scoring")
+    p.add_argument("--run", help="with --final: the lineage run this genome came from (e.g. live-1)")
+    p.add_argument("--gen", type=int, help="with --final: the generation this genome came from")
     p.set_defaults(fn=cmd_run)
     args = parser.parse_args()
     args.fn(args)
