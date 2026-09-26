@@ -1775,6 +1775,49 @@ button:disabled { opacity: 0.4; cursor: default; }
     </div>`;
   }
 
+  // Hill-climb chart for the Evolution step: the lineage (best kept so far) as a step line, every proposal as a
+  // faint dot, and % labels at the crucial points: the start, each kept jump (with its gain) and the current best.
+  function HillCurve(props) {
+    var runs = props.runs, cur = props.cur, W = props.width || 513, H = props.height || 190;
+    var padL = 34, padR = 16, padT = 26, padB = 26, iw = W - padL - padR, ih = H - padT - padB;
+    var vals = runs.map(function (r) { return r.acc; }).filter(function (v) { return v != null; });
+    var lo = Math.floor((Math.min.apply(null, vals) - 0.03) * 20) / 20, hi = Math.ceil((Math.max.apply(null, vals) + 0.03) * 20) / 20;
+    var n = runs.length;
+    var x = function (i) { return padL + (n > 1 ? (i / (n - 1)) * iw : iw / 2); };
+    var y = function (v) { return padT + (1 - (v - lo) / (hi - lo)) * ih; };
+    var best = null, line = [], labels = [], dots = [];
+    runs.forEach(function (r, i) {
+      if (i > cur) return;
+      if (r.acc != null) dots.push({ i: i, v: r.acc, kept: r.status === 'accepted' });
+      var before = best;
+      if (r.acc != null && r.status === 'accepted' && (best == null || r.acc > best)) best = r.acc;
+      if (best != null) line.push([x(i), y(best)]);
+      if (best != null && best !== before) labels.push({ i: i, v: best, gain: before == null ? null : best - before });
+    });
+    var path = line.map(function (p, k) { return (k ? 'L' : 'M') + p[0].toFixed(1) + ' ' + p[1].toFixed(1); }).join(' ');
+    var steps = [];
+    var step = hi - lo > 0.3 ? 0.1 : 0.05;  // wider ranges get 10-point gridlines so labels don't crowd
+    for (var t = Math.ceil(lo / step - 1e-9) * step; t <= hi + 1e-9; t += step) steps.push(t);
+    return html`<div className="col gap6">
+      <svg width=${W} height=${H} viewBox=${'0 0 ' + W + ' ' + H} role="img" aria-label=${props.label || 'Score by generation'}>
+        ${steps.map(function (t, k) { return html`<g key=${'g' + k}><line x1=${padL} x2=${W - padR} y1=${y(t)} y2=${y(t)} stroke="var(--line)" strokeWidth="1" />
+          <text x=${padL - 6} y=${y(t) + 3} textAnchor="end" fontSize="10" fill="var(--ink-muted)" fontFamily="var(--font-mono)">${Math.round(t * 100)}</text></g>`; })}
+        ${runs.map(function (r, i) { return html`<text key=${'x' + i} x=${x(i)} y=${H - 8} textAnchor="middle" fontSize="10" fill=${i === cur ? 'var(--ink)' : 'var(--ink-muted)'} fontFamily="var(--font-mono)">G${r.run - 1}</text>`; })}
+        ${dots.filter(function (d) { return !d.kept; }).map(function (d) { return html`<circle key=${'d' + d.i} cx=${x(d.i)} cy=${y(d.v)} r="3.5" fill="var(--series-heldout)" opacity="0.45" />`; })}
+        <path d=${path} fill="none" stroke="var(--accent)" strokeWidth="2.5" strokeLinejoin="round" />
+        ${labels.map(function (l, k) {
+          var lx = x(l.i), ly = y(l.v), anchor = l.i === 0 ? 'start' : l.i === n - 1 ? 'end' : 'middle';
+          return html`<g key=${'l' + k}>
+            <circle cx=${lx} cy=${ly} r="4.5" fill="var(--accent)" stroke="var(--surface-raised)" strokeWidth="1.5" />
+            <text x=${l.i === 0 ? lx + 6 : lx} y=${l.i === 0 ? ly + 18 : ly - 9} textAnchor=${anchor} fontSize="12" fontWeight="600" fill="var(--accent)" fontFamily="var(--font-mono)">${(l.v * 100).toFixed(1)}%</text>
+            ${l.gain != null ? html`<text x=${lx} y=${ly + 17} textAnchor=${anchor} fontSize="10" fill="var(--good)" fontFamily="var(--font-mono)">+${(l.gain * 100).toFixed(1)}</text>` : null}
+          </g>`;
+        })}
+      </svg>
+      <div className="row gap16 xs muted"><span className="row gap6"><span style=${{ display: 'inline-block', width: 14, height: 2.5, background: 'var(--accent)' }}></span>${props.trainLabel || 'Lineage (kept changes)'}</span><span className="row gap6"><span style=${{ display: 'inline-block', width: 7, height: 7, borderRadius: 4, background: 'var(--series-heldout)', opacity: 0.45 }}></span>Proposal the gate rejected</span></div>
+    </div>`;
+  }
+
   function Training(props) {
     var runs = F.runs, n = runs.length;
     var cur = Math.min(n - 1, Math.floor(props.tick / 10));
@@ -1796,18 +1839,18 @@ button:disabled { opacity: 0.4; cursor: default; }
         <div className="row between"><span className="tag tag-train"><span className="pill-dot"></span>${F.live ? 'Evolution · backtest on past storms (Miami shown)' : 'Evolution · Storm 1, October · assessed'}</span><span className="mono small">Generation ${runs[cur].run - 1} of ${LAST}</span></div>
         <${S.DamageMap} cells=${runs[shown].cells} confidence=${runs[shown].conf} cellSize=${15} label="Past storm map at the current generation" />
         <div className="row between"><span className="muted small">${F.live ? 'Selection: validation storm balanced accuracy (the gate)' : "Fitness: scored against Storm 1's official assessment"}</span><span className="mono num md" style=${{ color: 'var(--series-heldout)' }}>${pct(runs[shown].acc)}</span></div>
+        <${HillCurve} runs=${runs} cur=${cur} width=${513} height=${176} trainLabel=${F.live ? 'Lineage, validation (kept changes)' : 'Lineage so far on Storm 1'} label="Score by generation" />
       </div>
       <div className="col gap12 grow">
         <strong className="small">Generations: what the harness is trying</strong>
         <div className="col">${runs.map(function (r, i) {
-          if (F.live && (i < cur - 3 || i > cur + 1)) return null;  // live: a window around the current generation
+          if (F.live && (i < cur - 5 || i > cur + 1)) return null;  // live: a window of seven around the current generation
           var done = i <= cur;
           var result = !done ? 'queued' : r.status === 'accepted' ? (r.run === 1 ? 'generation 0' : 'kept') : r.status === 'rejected' ? 'rejected by the gate' : (F.live ? 'not scored' : 'skipped by memory');
           var color = !done ? 'var(--ink-muted)' : r.status === 'accepted' ? 'var(--good)' : r.status === 'rejected' ? 'var(--critical)' : 'var(--ink-muted)';
-          return html`<div className=${'logrow' + (i === cur ? ' current' : '')} style=${{ opacity: done ? 1 : 0.45 }} key=${i}><span className="mono muted xs">Gen ${r.run - 1}</span><span className="xs">${F.live && r.hyp.length > 120 ? r.hyp.slice(0, 117) + '…' : r.hyp}</span><span className="xs strong" style=${{ color: color }}>${result}</span></div>`;
+          return html`<div className=${'logrow' + (i === cur ? ' current' : '')} style=${{ opacity: done ? 1 : 0.45 }} key=${i}><span className="mono muted xs">Gen ${r.run - 1}</span><span className="xs">${F.live && r.hyp.length > 105 ? r.hyp.slice(0, 102) + '…' : r.hyp}</span><span className="xs strong" style=${{ color: color }}>${result}</span></div>`;
         })}</div>
         ${props.next}
-        <${S.ScoreCurve} train=${curve} xLabels=${runs.map(function (r) { return 'Gen ' + (r.run - 1); })} trainLabel=${F.live ? 'Lineage, validation' : 'Lineage so far on Storm 1'} min=${0.2} max=${1} width=${420} height=${150} label="Score by generation" />
       </div>
     </div>`;
   }
