@@ -5,8 +5,8 @@ a storm it never saw, and can't cheat because MongoDB locks the answers away.
 
 | | |
 |---|---|
-| **Start page (share this)** | https://sightline-jev.vercel.app |
-| **Demo (default): story + live arena, recorded data** | https://sightline-jev.vercel.app/story.html (`?beat=1..7`, `?view=arena&autostart=1`) |
+| **Start page (share this)** | https://sightline-jev.vercel.app (opens the demo on its Summary tab) |
+| **Demo: Summary · Story · Live arena · How we built this, recorded data** | https://sightline-jev.vercel.app/story.html (`?view=summary\|story\|arena\|how`, `?beat=1..7`, `?view=arena&autostart=1`) |
 | **Seven-beat version** | https://sightline-jev.vercel.app/sightline.html |
 | **Read-only API** | https://sightline-jev.vercel.app/api/state · `/api/map` · `/api/block` · `/api/reports` |
 | **Code** | https://github.com/hughesbrayden/sightline |
@@ -335,7 +335,7 @@ keys, indexes, logins and size.
 | `puzzle_draft/storm_reference/` | Builder's hand-written ceiling. **Never shown to the curator** |
 | `puzzle_draft/db.py`, `mongo_setup.py`, `mongo_itest.py` | Logins, schema, roles, permission check, tripwire probe, integration test |
 | `puzzle_draft/preflight.py`, `backfill_runs.py` | Access check; rebuild older `runs` rows |
-| `dashboard/` | Next.js: read-only API, start page, `public/sightline.html`, `public/snapshot.json` |
+| `dashboard/` | Next.js: read-only API, start page (redirects to the demo), `public/story.html`, `public/sightline.html`, `public/snapshot.json` |
 | `demo/` | Sightline stage demo source (`src/app.js`, `src/live.js`), `build_live.sh`, `snapshot.mjs` |
 | `ds-sightline/` | Sightline design system: tokens and components |
 
@@ -424,16 +424,17 @@ version, and each run is shown next to the baseline from its own world.
 
 ## Dashboard and stage demo
 
-**Start page:** https://sightline-jev.vercel.app shows the pitch, the held-out results, the learned rules, the
-tripwire denial, both architecture diagrams and links to each beat. It's static, so it works even if the database is unreachable. Its
-numbers come from `dashboard/lib/headline.json`, written by `./sightline.sh publish`.
+**Start page:** https://sightline-jev.vercel.app redirects to the demo, which opens on its **Summary** tab: the
+pitch, tonight's held-out results, how it works and what it learned. The architecture, the tripwire denial and both
+diagrams are on its **How we built this** tab. (`./sightline.sh publish` still writes `dashboard/lib/headline.json`.)
 
-**Default demo:** https://sightline-jev.vercel.app/story.html is Brayden's click-through story with the
-**Story / Live arena** switch, fed by the recorded run `live-2` through `demo/src/live.js`:
+**Default demo:** https://sightline-jev.vercel.app/story.html is Brayden's click-through demo with four tabs
+(**Summary**, **Story**, **Live arena**, **How we built this**), fed by the recorded run `live-2` through
+`demo/src/live.js`:
 
-- **Story tab** (Calm night, Storm hits, Generation 0, Fitness signal, Evolution, Replay, Any city): real maps,
-  reports, the exact lines Jev read ("Now reading block…"), real misreads, the recorded lineage, tonight's
-  once-only score and the three cities.
+- **Story tab** (Calm night, Storm hits, First pass, How it did, Evolution, Same night replayed, What it
+  learned): real maps, reports, the exact lines Jev read ("What Jev is reading"), real misreads, the recorded
+  lineage (played on the past NYC storm, NYC0), tonight's once-only score and the three cities.
 - **Live arena:** replays the recorded run generation by generation: the real hypotheses, backtest maps, gate
   verdicts and validation scores, labeled as a replay. A new run is started from the backend
   (`./sightline.sh loop`), not from the browser, so judges can't spend credit and the scorer login never sits on
@@ -441,7 +442,7 @@ numbers come from `dashboard/lib/headline.json`, written by `./sightline.sh publ
 - `?beat=N` jumps to a step; `?view=arena&autostart=1` opens the arena already playing. Both pages are pinned to
   `live-2` (`DEMO_RUN=<run> ./sightline.sh publish` to pin another run; `?run=live-1` shows the earlier run).
 - The example-data version stays at `/story-example.html`, with a banner.
-- **← Home** in the presenter bar (both demo pages) returns to the start page.
+- The seven-beat page (`sightline.html`) keeps its **← Home** button, which now opens the demo.
 - For a traced run, the arena links each generation to its LangSmith trace.
 
 **Seven-beat version:** https://sightline-jev.vercel.app/sightline.html is the same story as seven beats, fed by

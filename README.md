@@ -12,8 +12,8 @@ Brayden Hughes.
 
 | | |
 |---|---|
-| **Start page** | https://sightline-jev.vercel.app |
-| **Demo: story + live arena (recorded run)** | https://sightline-jev.vercel.app/story.html |
+| **Start page** | https://sightline-jev.vercel.app (opens the demo) |
+| **Demo: Summary · Story · Live arena · How we built this (recorded run)** | https://sightline-jev.vercel.app/story.html |
 | **Runbook, architecture, results** | [DEMO.md](DEMO.md) |
 | **Backend** | `./sightline.sh help` |
 
