@@ -171,7 +171,9 @@
         var scored = st.gens.filter(function (g) { return g.dev != null; });
         var heldNYC = (st.heldout || []).some(function (h) { return h.town === 'NYC1'; });
         var night = heldNYC ? 'NYC1' : 'NYC0';
-        var backtest = 'MIA1';
+        // The per-generation maps the demo shows: a past New York storm (the gate's validation storm), so the evolution
+        // stays in the same city as tonight. Never tonight's storm itself; that one is scored once, at the end.
+        var backtest = heldNYC ? 'NYC0' : 'MIA1';
         var genNight = heldNYC ? null : 0;  // tonight's gen-0 map exists only if the baseline was also scored once
         var q = function (gen, town) { return '/api/map?run=' + run + '&gen=' + gen + '&town=' + town; };
         var jobs = [api(base, q(0, night) + '&lines=1'), api(base, q(best, night)), api(base, '/api/reports?town=' + night + '&until_hour=6')];
@@ -187,7 +189,7 @@
           var calm = zero.cells.map(function (c) { return c === 'water' ? 'water' : 'intact'; });
 
           // ---- generations (the recorded lineage) ----
-          var bestVal = null, bestGen = null, prevOps = {};
+          var bestVal = null, bestGen = null, prevOps = {}, prevFmt = {};
           var gens = st.gens.filter(function (g) { return g.status !== 'running'; }).map(function (g) {
             var out = { gen: g.gen, hyp: g.hypothesis || '', predicted: predicted(g.prediction), parent: bestGen, rule: null, trace: g.trace_url || null };
             if (g.dev == null) {
@@ -201,7 +203,12 @@
               valDelta: bestVal == null ? null : g.val - bestVal,
               status: g.gen === 0 ? 'baseline' : kept ? 'kept' : 'rejected' });
             if (kept && g.gen > 0) out.rules = rulesFor(g.ops, prevOps[bestGen]);
-            prevOps[g.gen] = g.ops;
+            if (!kept && g.gen > 0 && g.ops) out.tried = rulesFor(g.ops, prevOps[bestGen]);  // what a rejected change tried
+            if (g.gen > 0 && g.format && prevFmt[bestGen] && g.format !== prevFmt[bestGen]) {  // a change to how locations are written
+              var fmt = g.format === 'relative' ? "Label reports as 'this block' or 'N blocks away' instead of coordinates." : 'Write report locations as ' + g.format + '.';
+              if (kept) out.rules = (out.rules || []).concat([fmt]); else out.tried = (out.tried || []).concat([fmt]);
+            }
+            prevOps[g.gen] = g.ops; prevFmt[g.gen] = g.format;
             if (kept) { bestVal = g.val; bestGen = g.gen; }
             return out;
           });
@@ -233,6 +240,13 @@
           var cands = [], seen = {};
           wrong.forEach(function (w) { var k = w.p + '>' + w.t; if (cands.length < 16 && !seen[k]) { seen[k] = 1; cands.push(w); } });
           wrong.forEach(function (w) { if (cands.length < 16 && cands.indexOf(w) < 0) cands.push(w); });
+          // Featured misreads for the demo run: real generation 0 mistakes, chosen to be representative rather than the
+          // most dramatic (one per cause; three the evolved harness fixed, one it didn't). Other runs keep the default.
+          var FEATURED = { 'live-2|NYC1': [823, 37, 796, 391] }, feat = FEATURED[run + '|' + night];
+          if (feat) {
+            var fw = feat.map(function (i) { return wrong.filter(function (w) { return w.i === i; })[0]; }).filter(Boolean);
+            if (fw.length === feat.length) cands = fw.concat(cands.filter(function (w) { return feat.indexOf(w.i) < 0; }));
+          }
           var blockJobs = cands.map(function (w) {
             return api(base, '/api/block?run=' + run + '&gen=0&town=' + night + '&x=' + (w.i % N) + '&y=' + Math.floor(w.i / N));
           });
@@ -289,19 +303,34 @@
             F.runs = gens.map(function (G) {
               return { run: G.gen + 1, status: G.status === 'kept' || G.status === 'baseline' ? 'accepted' : G.status,
                        hyp: G.hyp || G.note || '', predicted: G.predicted, cells: G.cells || null, conf: G.conf || null,
-                       acc: G.val != null ? G.val : null, dev: G.dev, note: G.note, trace: G.trace || null };
+                       acc: G.val != null ? G.val : null, dev: G.dev, note: G.note, trace: G.trace || null,
+                       rules: G.rules || null, tried: G.tried || null };
             });
             var heldBy = {}; (st.heldout || []).forEach(function (x) { if (x.genome_id !== 'baseline') heldBy[x.town] = x; });
             var tonightHeld = heldBy.NYC1;
             F.cities = [{ key: 'nyc', name: 'New York', area: 'tonight, held out', cells: evolved.cells, conf: evolved.conf,
-                          acc: tonightHeld ? tonightHeld.score : es.acc, critFound: es.critFound, critTotal: es.critTotal }]
+                          acc: tonightHeld ? tonightHeld.score : es.acc, plainAcc: es.acc, critFound: es.critFound, critTotal: es.critTotal }]
               .concat(cityTowns.map(function (t, k) {
                 var h2 = heldBy[t], cm2 = cityMaps[k];
                 return { key: t, name: CITY[t.slice(0, 3)], area: 'next season', cells: cm2.cells, conf: cm2.conf,
-                         acc: h2 ? h2.score : score(cm2).acc, critFound: h2 ? h2.life_safety_found : null,
+                         acc: h2 ? h2.score : score(cm2).acc, plainAcc: cm2.hasTruth ? score(cm2).acc : null, critFound: h2 ? h2.life_safety_found : null,
                          critTotal: h2 ? h2.life_safety_total : null };
               }));
             F.lines0 = zero.lines;
+            // For the tabbed demo: the once-only held-out scores, the tripwire probe, the run and its reference scores,
+            // and how many blocks the evolved harness fixed or broke on this night compared with generation 0.
+            F.heldoutAll = st.heldout || []; F.probe = st.probe || null; F.runInfo = st.run || null; F.refs = st.refs || null;
+            var fixed = 0, broke = 0;
+            zero.eng.forEach(function (p, i) {
+              var t = zero.engTruth[i] || evolved.engTruth[i], q = evolved.eng[i];
+              if (!p || !q || !t) return;
+              if (p !== t && q === t) fixed++;
+              if (p === t && q !== t) broke++;
+            });
+            F.fixes = { fixed: fixed, broke: broke };
+            // Per block: did this map get it right? (null where there's no assessment), same rule as the accuracy score.
+            var okOf = function (g) { return g.eng.map(function (p, i) { var t = zero.engTruth[i] || evolved.engTruth[i]; return p && t ? p === t : null; }); };
+            F.zero.ok = okOf(zero); F.evolved.ok = okOf(evolved);
             F.rules = []; gens.forEach(function (G) { (G.rules || []).forEach(function (t) { F.rules.push({ text: t, gen: G.gen }); }); });
             D.LESSONS = F.rules;
             var confSum = 0, confN = 0; evolved.eng.forEach(function (p, i) { if (p) { confSum += evolved.conf[i]; confN++; } });
