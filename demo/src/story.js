@@ -12,8 +12,20 @@
   var LAND = F.landBlocks || 1024;
   var sgn = function (v) { return (v >= 0 ? '+' : '−') + Math.abs(v * 100).toFixed(1); };
 
-  var CELL = 20;
-  function at(r, c, cell) { cell = cell || CELL; return { left: 1 + c * (cell + 1) + cell / 2, top: 1 + r * (cell + 1) + cell / 2 }; }
+  // Phone layout: below 900px wide (or 500px tall) the fixed stage would shrink past reading size, so the page flows
+  // in one scrolling column instead and each map gets the largest cells that fit the width. ?layout=phone|stage forces one.
+  var PHONE, AVAIL, CELL, GAP;
+  function fitCell(w, max) { return Math.max(3, Math.min(max, Math.floor((w - 2) / 32))); }  // 32 gapless cells + 1px frame
+  function measure() {
+    var force = new URLSearchParams(location.search).get('layout');
+    PHONE = force ? force === 'phone' : window.innerWidth < 900 || window.innerHeight < 500;
+    AVAIL = Math.min(document.documentElement.clientWidth, 720) - 32;  // the column inside 16px gutters
+    CELL = PHONE ? fitCell(AVAIL, 20) : 20;
+    GAP = PHONE ? 0 : undefined;  // gapless maps on phones (more room per block); undefined keeps DamageMap's default
+    return PHONE + ':' + AVAIL;
+  }
+  measure();
+  function at(r, c) { var p = CELL + (GAP === 0 ? 0 : 1); return { left: 1 + c * p + CELL / 2, top: 1 + r * p + CELL / 2 }; }
 
   var PIN = {
     call: { width: 10, height: 10, borderRadius: 5, background: 'var(--critical)', boxShadow: '0 0 0 2px var(--surface-raised)' },
@@ -112,7 +124,7 @@
     var clickable = !!props.clickable;
     return html`<div className="mapstage">
       <${S.DamageMap} cells=${props.cells} confidence=${props.conf} truth=${props.truth} mode=${props.mode || 'guess'}
-        cellSize=${CELL} caption=${props.caption} meta=${props.meta} label=${props.label}
+        cellSize=${CELL} gap=${GAP} caption=${props.caption} meta=${props.meta} label=${props.label}
         selected=${selected == null ? -1 : selected}
         onSelect=${clickable ? function (i) { if (F.truth[i] !== 'water' && F.truth[i] !== 'park') setSelected(i); } : undefined} />
       ${(props.pins || []).map(function (p, k) {
@@ -130,7 +142,7 @@
         var pos = at(Math.floor(i / 32), i % 32);
         return html`<span key=${'f' + i} className="inflight" style=${{ left: pos.left, top: pos.top }}></span>`;
       })}
-      ${clickable && selected == null ? html`<span className="hint">Click any block to see what's behind it</span>` : null}
+      ${clickable && selected == null ? html`<span className="hint">${PHONE ? 'Tap' : 'Click'} any block to see what's behind it</span>` : null}
     </div>`;
   }
 
@@ -250,7 +262,7 @@
           <div className="intro"><h2>What it learned, and how far it carries</h2><p className="muted lead">We applied Sightline's learned harness to other cities: storms in Miami, Houston, and New Orleans.</p></div>
           <div className="citymaps">${F.cities.map(function (c) {
             return html`<div className="citymap" key=${c.key}>
-              <${S.DamageMap} cells=${c.cells} confidence=${c.conf} cellSize=${9} label=${c.name + ' map, scored once'} />
+              <${S.DamageMap} cells=${c.cells} confidence=${c.conf} cellSize=${PHONE ? fitCell((AVAIL - 16) / 2, 9) : 9} label=${c.name + ' map, scored once'} />
               <div className="row between end"><div className="col gap2"><strong>${c.name}</strong><span className="muted xs">${c.area}</span></div><span className="mono cityacc">${pct(cityAcc(c))}</span></div>
             </div>`;
           })}</div>
@@ -543,7 +555,7 @@
     };
     return html`<div className="body">
       <div className="mapstage">
-        <${S.DamageMap} cells=${runs[shown].cells} confidence=${runs[shown].conf} cellSize=${CELL}
+        <${S.DamageMap} cells=${runs[shown].cells} confidence=${runs[shown].conf} cellSize=${CELL} gap=${GAP}
           caption=${(F.live ? 'A past NYC storm' : 'Storm 1, October') + ' · best so far, round ' + (runs[shown].run - 1)} meta=${'score ' + pct(runs[shown].acc)} label="Past storm map at the current generation" />
       </div>
       <div className="panel">
@@ -557,7 +569,7 @@
             return html`<div className=${'logrow' + (i === cur ? ' current' : '')} style=${{ opacity: done ? 1 : 0.45 }} key=${i}><span className="mono muted xs">Round ${r.run - 1}</span><span className="small">${line(r)}</span><span className="xs strong" style=${{ color: color }}>${result}</span></div>`;
           })}
         </div>
-        <div className="col gap16" style=${{ marginTop: 'auto' }}>${props.next}<${HillCurve} runs=${runs} cur=${cur} width=${560} height=${176} trainLabel="Best so far" xPrefix="R" label="Score by round" /></div>
+        <div className="col gap16" style=${{ marginTop: 'auto' }}>${props.next}<${HillCurve} runs=${runs} cur=${cur} width=${PHONE ? AVAIL : 560} height=${176} trainLabel="Best so far" xPrefix="R" label="Score by round" /></div>
       </div>
     </div>`;
   }
@@ -638,7 +650,7 @@
         right=${html`<button className="ghost" style=${{ visibility: st.started ? 'visible' : 'hidden' }} onClick=${function () { setSt(init); }}>Reset</button>`} />
       <div className="body">
         <div className="mapstage">
-          <${S.DamageMap} cells=${cells} confidence=${conf} cellSize=${CELL} caption=${caption} meta=${meta} label="Past storm map at the current generation" />
+          <${S.DamageMap} cells=${cells} confidence=${conf} cellSize=${CELL} gap=${GAP} caption=${caption} meta=${meta} label="Past storm map at the current generation" />
           ${!st.started ? html`<div className="veil"><div className="startcard">
             <span className="tag tag-train">Live evolution</span>
             <strong className="h3">Give the harness past storms to evolve on</strong>
@@ -667,7 +679,7 @@
             })}</div>
             <span className="mono xs statusline" style=${{ color: statusColor }}>${status}</span>
           </div>
-          <${HillCurve} runs=${runs} cur=${st.history.length - 1} width=${613} height=${170} trainLabel=${F.live ? 'Lineage, validation (kept)' : 'Lineage so far'} label="Score by generation" />
+          <${HillCurve} runs=${runs} cur=${st.history.length - 1} width=${PHONE ? AVAIL : 613} height=${170} trainLabel=${F.live ? 'Lineage, validation (kept)' : 'Lineage so far'} label="Score by generation" />
           <div className="col">${st.history.slice().reverse().slice(0, 3).map(function (h) {
             var result = h.status === 'skipped' ? (F.live ? 'not scored' : 'skipped by memory') : h.run === 1 ? 'generation 0 · ' + pct(h.acc) : h.kept ? 'kept ' + sgn(h.acc - h.bestBefore) : 'rejected ' + sgn(h.acc - h.bestBefore);
             return html`<div className="logrow" key=${h.run}><span className="mono muted xs">Gen ${h.run - 1}</span><span className="xs clip">${(F.live ? runs[h.run - 1] : D.RUNS_NYC[h.run - 1]).hyp}</span><span className="xs strong" style=${{ color: h.status === 'skipped' ? 'var(--ink-muted)' : h.kept ? 'var(--good)' : 'var(--critical)' }}>${result}</span></div>`;
@@ -733,15 +745,16 @@
     // Outline each false dispatch. Measured from the first cell, so the outlines sit on the grid whatever the
     // map's own padding; the stage is scaled, hence the offsetWidth / rect ratio.
     var ref = useRef(null), o = useState(null), off = o[0], setOff = o[1];
+    var cs = PHONE ? CELL : props.cellSize || 10;
     useEffect(function () {
       var d = ref.current, c = d && d.querySelector('[data-i="0"]'), c1 = d && d.querySelector('[data-i="33"]');
       if (!c || !c1) return;
       var b = d.getBoundingClientRect(), r = c.getBoundingClientRect(), r1 = c1.getBoundingClientRect(), k = b.width ? d.offsetWidth / b.width : 1;
       // pitch = cell + gap (maps of 10px cells and up have a 1px gap between cells)
       setOff({ x: (r.left - b.left) * k, y: (r.top - b.top) * k, cell: r.width * k, pitch: (r1.left - r.left) * k });
-    }, []);
+    }, [cs, GAP]);
     return html`<div className=${'dmap' + (props.highlight === 'right' ? ' rightmode' : '')} ref=${ref}>
-      <${S.DamageMap} cells=${props.cells} confidence=${props.conf} cellSize=${props.cellSize || 10} caption=${props.caption} meta=${props.meta} label=${props.label} />
+      <${S.DamageMap} cells=${props.cells} confidence=${props.conf} cellSize=${cs} gap=${GAP} caption=${props.caption} meta=${props.meta} label=${props.label} />
       ${off ? (props.highlight === 'right' ? rightIdx(props) : props.highlight === 'fixed' || props.highlight === 'tofix' ? fixedIdx() : falseIdx(props.cells)).map(function (i) {
         var st = props.highlight === 'right' ? S.STATES.filter(function (s) { return s.key === props.cells[i]; })[0] : null;
         return html`<span key=${i} className=${'fring' + (props.highlight === 'right' ? ' right' : props.highlight === 'fixed' ? ' fixed' : '')} style=${{ left: off.x + (i % 32) * off.pitch, top: off.y + Math.floor(i / 32) * off.pitch, width: off.cell, height: off.cell, background: st ? 'var(--' + st.fill + ')' : undefined }}></span>`;
@@ -851,7 +864,7 @@
   }
 
   // ---------- shell: four tabs ----------
-  var TABS = [['summary', 'Summary'], ['story', 'Story'], ['arena', 'Live arena'], ['how', 'How we built this']];
+  var TABS = [['summary', 'Summary'], ['story', 'Story'], ['arena', 'Live arena', 'Arena'], ['how', 'How we built this', 'Architecture']];  // third: phone label
 
   function App() {
     var qs = new URLSearchParams(location.search);
@@ -861,7 +874,16 @@
     var s1 = useState(Math.min(7, Math.max(1, beat || 1))), step = s1[0], setStep = s1[1];
     var s2 = useState(v0), view = s2[0], setView = s2[1];
     var s3 = useState('idle'), arena = s3[0], setArena = s3[1];
+    var s4 = useState(0), setLayout = s4[1];
     var pos = useRef(); pos.current = { view: view, step: step };
+    // Crossing into or out of the phone layout (or rotating a phone) re-renders with new map sizes, keeping state.
+    useEffect(function () {
+      var sig = measure();
+      function onResize() { var s = measure(); fit(); if (s !== sig) { sig = s; setLayout(function (n) { return n + 1; }); } }
+      window.addEventListener('resize', onResize);
+      return function () { window.removeEventListener('resize', onResize); };
+    }, []);
+    useEffect(function () { if (PHONE) window.scrollTo(0, 0); }, [view, step]);  // each screen starts at its top
     function beatTo(n) { setView('story'); setStep(n); }
     // One linear path for the clicker, in tab order: Summary → the six beats → Live arena → How we built this.
     function nav(dir) {
@@ -893,7 +915,7 @@
         <div className="row gap10">
           <div className="seg" role="tablist" aria-label="View">${TABS.map(function (t) {
             var on = view === t[0];
-            return html`<button key=${t[0]} role="tab" className=${on ? 'on' : ''} aria-selected=${on} onClick=${function () { if (t[0] === 'story') beatTo(step); else setView(t[0]); }}>${t[1]}${t[0] === 'arena' ? (arena === 'running' ? html` <span className="live-dot"></span>` : arena === 'done' ? ' ✓' : '') : ''}</button>`;
+            return html`<button key=${t[0]} role="tab" className=${on ? 'on' : ''} aria-selected=${on} onClick=${function () { if (t[0] === 'story') beatTo(step); else setView(t[0]); }}>${(PHONE && t[2]) || t[1]}${t[0] === 'arena' ? (arena === 'running' ? html` <span className="live-dot"></span>` : arena === 'done' ? ' ✓' : '') : ''}</button>`;
           })}</div>
         </div>
         <div className="steps" style=${{ visibility: story ? 'visible' : 'hidden' }}>${NAMES.map(function (name, i) {
@@ -909,15 +931,16 @@
     </div>`;
   }
 
-  // ---------- fit the 1440×964 stage to the window ----------
+  // ---------- fit the 1440×964 stage to the window (phones: no stage, the page scrolls) ----------
   function fit() {
     var stage = document.getElementById('stage'), wrap = document.getElementById('wrap');
+    document.documentElement.classList.toggle('phone', PHONE);
+    if (PHONE) { stage.style.transform = wrap.style.width = wrap.style.height = ''; return; }
     var k = Math.min(window.innerWidth / 1440, window.innerHeight / 964);
     stage.style.transform = 'scale(' + k + ')';
     wrap.style.width = Math.floor(1440 * k) + 'px';
     wrap.style.height = Math.floor(964 * k) + 'px';
   }
-  window.addEventListener('resize', fit);
   fit();
 
   ReactDOM.createRoot(document.getElementById('stage')).render(html`<${App} />`);

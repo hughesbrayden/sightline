@@ -7,6 +7,7 @@ cd "$(dirname "$0")"
 DS=../ds-sightline/project/components
 {
 cat <<'HEAD'
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Sightline Demo</title>
 <meta name="description" content="Click-through demo of Sightline: a frozen model, a harness that evolves how it reads hurricane reports.">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@75..125,500..700&family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@300;400;500&display=swap">
