@@ -480,7 +480,8 @@
     return html`<div className="screen">${header}
       <div className="body">
         <${MapStage} resetKey=${beat} ...${map} label=${map.caption} />
-        <div className="panel">${panel}<div className="panel-foot">${next}${legend}</div></div>
+        ${PHONE ? legend : null}
+        <div className="panel">${panel}<div className="panel-foot">${next}${PHONE ? null : legend}</div></div>
       </div>
     </div>`;
   }
@@ -906,18 +907,39 @@
     }, []);
     var story = view === 'story';
     var show = function (on) { return { display: on ? 'block' : 'none' }; };
-    return html`<div className="app">
+    var tabs = html`<div className="seg" role="tablist" aria-label="View">${TABS.map(function (t) {
+      var on = view === t[0];
+      return html`<button key=${t[0]} role="tab" className=${on ? 'on' : ''} aria-selected=${on} onClick=${function () { if (t[0] === 'story') beatTo(step); else setView(t[0]); }}>${(PHONE && t[2]) || t[1]}${t[0] === 'arena' ? (arena === 'running' ? html` <span className="live-dot"></span>` : arena === 'done' ? ' ✓' : '') : ''}</button>`;
+    })}</div>`;
+    var views = html`
       <div style=${show(view === 'summary')}><${Summary} go=${function (v) { if (v === 'story') beatTo(1); else setView(v); }} /></div>
       <div style=${show(story)}><${Story} beat=${step} visible=${story} onNext=${function () { nav(1); }} /></div>
       <div style=${show(view === 'arena')}><${Arena} onStatus=${setArena} /></div>
-      <div style=${show(view === 'how')}><${How} /></div>
+      <div style=${show(view === 'how')}><${How} /></div>`;
+    // Phone: the tabs sit at the top of the page; the bottom bar is one quiet row (‹, where you are, ›), so the
+    // screen's own call to action stays the one primary button.
+    if (PHONE) {
+      var chev = function (d) { return html`<svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d=${d} /></svg>`; };
+      var where = story ? step + ' of ' + NAMES.length + ' · ' + NAMES[step - 1] : TABS.filter(function (t) { return t[0] === view; })[0][1];
+      return html`<div className="app">
+        <nav className="tabbar" aria-label="Sections">${tabs}</nav>
+        ${views}
+        <nav className="phonebar" aria-label="Back and next">
+          <button className="navbtn" aria-label="Back" disabled=${view === 'summary'} onClick=${function () { nav(-1); }}>${chev('M12 4 6 10l6 6')}</button>
+          <div className="progress">
+            ${story ? html`<div className="dots" aria-hidden="true">${NAMES.map(function (name, i) {
+              return html`<span key=${i} className=${'dot' + (i + 1 === step ? ' on' : i + 1 < step ? ' done' : '')}></span>`;
+            })}</div>` : null}
+            <span className="small" aria-live="polite">${where}</span>
+          </div>
+          <button className="navbtn primary" aria-label="Next" disabled=${view === 'how'} onClick=${function () { nav(1); }}>${chev('m8 4 6 6-6 6')}</button>
+        </nav>
+      </div>`;
+    }
+    return html`<div className="app">
+      ${views}
       <nav className="presenter" aria-label="Presenter controls">
-        <div className="row gap10">
-          <div className="seg" role="tablist" aria-label="View">${TABS.map(function (t) {
-            var on = view === t[0];
-            return html`<button key=${t[0]} role="tab" className=${on ? 'on' : ''} aria-selected=${on} onClick=${function () { if (t[0] === 'story') beatTo(step); else setView(t[0]); }}>${(PHONE && t[2]) || t[1]}${t[0] === 'arena' ? (arena === 'running' ? html` <span className="live-dot"></span>` : arena === 'done' ? ' ✓' : '') : ''}</button>`;
-          })}</div>
-        </div>
+        <div className="row gap10">${tabs}</div>
         <div className="steps" style=${{ visibility: story ? 'visible' : 'hidden' }}>${NAMES.map(function (name, i) {
           var n = i + 1, on = story && n === step;
           return html`<button key=${n} className=${'step' + (on ? ' on' : '')} aria-label=${'Beat ' + n + ': ' + name} aria-current=${on ? 'step' : 'false'} onClick=${function () { beatTo(n); }}>${on ? n + ' · ' + name : n}</button>`;
